@@ -245,7 +245,6 @@ Suggested branches include `feature/database-models`, `feature/user-management`,
 - [ ] Create GitHub issues and assign work
 - [ ] Create the Flask project skeleton
 - [ ] Connect PostgreSQL
-- [ ] Establish initial Docker Compose services
 - [ ] Add a health endpoint and setup documentation
 
 **Gate:** Every member can clone and start the same Flask and PostgreSQL environment.
