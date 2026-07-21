@@ -15,17 +15,16 @@ from app.users.services import (
     update_profile,
 )
 
-
 def _serialize_user(user):
-    """Return a safe, public representation of a user (no password hash)."""
     return {
         "id": user.id,
         "username": user.username,
         "email": user.email,
         "full_name": user.full_name,
         "is_active": user.is_active,
-        "role_id": user.role_id,
+        "roles": [role.name for role in user.roles],
     }
+
 
 
 @users_bp.post("/register")
