@@ -1,345 +1,310 @@
-# Authentication and Role-Based Authorization Microservice
 
-A standalone Flask microservice that manages user identity and controls access through roles and permissions.
+## Getting Started
 
-This repository is the working project for **Group J - BSE2301 Software Engineering**. The formal proposal is available in [PROPOSAL.md](PROPOSAL.md).
+After cloning the repository, complete the following setup before you begin development.
 
-## Project Question
+### 1. Create a virtual environment
 
-> Design and implement an Authentication and Role-Based Authorization Microservice using Flask, with full DevOps tooling, containerization, and orchestration.
-
-## What We Are Building
-
-The service will provide a reusable REST API for:
-
-- User registration and login
-- Secure password hashing
-- JWT access and refresh tokens
-- Token refresh, revocation, and logout
-- User profiles and account status
-- Password changing and recovery
-- Roles and permissions
-- Permission-protected endpoints
-- Administrative user management
-- Security audit logs
-- Health and readiness checks
-- OpenAPI/Swagger documentation
-
-The required release will remain focused. Social login, SMS authentication, enterprise Single Sign-On, Kubernetes, and complete client business systems are future improvements.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    USER["End User"]
-    ADMIN["Administrator"]
-    CLIENT["External Client Application"]
-
-    UI["Web Administration Interface"]
-    API["Flask REST API"]
-    VALIDATION["Request Validation"]
-    AUTH["Authentication and JWT Module"]
-    RBAC["Role and Permission Module"]
-    USERS["User Management Module"]
-    RESET["Password Recovery Module"]
-    AUDIT["Audit and Logging Module"]
-    HEALTH["Health and Readiness Module"]
-
-    ORM["SQLAlchemy ORM"]
-    DB[("PostgreSQL Database")]
-    MAIL["Development Email Adapter"]
-
-    SWAGGER["OpenAPI / Swagger"]
-    REPO["GitHub Repository"]
-    CI["GitHub Actions CI"]
-    IMAGE["Docker Image"]
-    COMPOSE["Docker Compose"]
-
-    USER --> UI
-    ADMIN --> UI
-    CLIENT --> API
-    UI --> API
-
-    API --> VALIDATION
-    VALIDATION --> AUTH
-    VALIDATION --> USERS
-    VALIDATION --> RBAC
-    VALIDATION --> RESET
-
-    AUTH --> ORM
-    USERS --> ORM
-    RBAC --> ORM
-    RESET --> ORM
-    AUDIT --> ORM
-    HEALTH --> ORM
-
-    AUTH --> AUDIT
-    USERS --> AUDIT
-    RBAC --> AUDIT
-    RESET --> AUDIT
-    RESET --> MAIL
-
-    ORM --> DB
-    API --> SWAGGER
-
-    REPO --> CI
-    CI --> IMAGE
-    IMAGE --> COMPOSE
-    COMPOSE --> API
-    COMPOSE --> DB
+```bash
+python -m venv .venv
 ```
 
-The Flask application is the single business microservice. PostgreSQL and the optional development email tool are supporting infrastructure. Docker Compose orchestrates their containers.
+Activate it.
 
-## System Modules
+**Windows**
 
-| Module | Responsibility |
-|---|---|
-| Application Core | Flask factory, configuration, blueprints, errors, and logging |
-| User Management | Registration, profiles, search, pagination, and account status |
-| Authentication | Login, JWT creation, refresh, logout, validation, and revocation |
-| Authorization | Roles, permissions, assignments, and access checks |
-| Password Recovery | Reset requests, expiring tokens, and password replacement |
-| Audit and Monitoring | Security events, application logs, health, and readiness |
-| Administration UI | Simple demonstration client for users, roles, and audit records |
-| Testing and Documentation | Pytest suite, OpenAPI/Swagger, and API examples |
-| DevOps and Deployment | Docker, Compose, GitHub Actions, configuration, and releases |
+```bash
+.venv\Scripts\activate
+```
 
-## Planned API
+**macOS / Linux**
 
-### Authentication
+```bash
+source .venv/bin/activate
+```
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | `/api/v1/auth/register` | Register a user |
-| POST | `/api/v1/auth/login` | Authenticate and issue tokens |
-| POST | `/api/v1/auth/refresh` | Issue a new access token |
-| POST | `/api/v1/auth/logout` | Revoke the current token |
-| POST | `/api/v1/auth/password/forgot` | Request a password reset |
-| POST | `/api/v1/auth/password/reset` | Reset a password with a valid token |
+### 2. Install project dependencies
 
-### Current user
+```bash
+pip install -r requirements.txt
+```
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/api/v1/users/me` | View the current profile |
-| PATCH | `/api/v1/users/me` | Update the current profile |
-| POST | `/api/v1/users/me/password` | Change the current password |
-| GET | `/api/v1/users/me/roles` | View assigned roles |
+### 3. Create your environment file
 
-### Administration and RBAC
+Copy the example configuration.
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/api/v1/users` | List and search users |
-| GET | `/api/v1/users/{id}` | View a user |
-| PATCH | `/api/v1/users/{id}/status` | Activate or suspend a user |
-| POST | `/api/v1/users/{id}/roles` | Assign a role |
-| DELETE | `/api/v1/users/{id}/roles/{role_id}` | Remove a role |
-| GET/POST | `/api/v1/roles` | List or create roles |
-| PATCH/DELETE | `/api/v1/roles/{id}` | Update or delete a role |
-| GET/POST | `/api/v1/permissions` | List or create permissions |
-| POST | `/api/v1/roles/{id}/permissions` | Assign a permission to a role |
-| DELETE | `/api/v1/roles/{id}/permissions/{permission_id}` | Remove a permission |
-| GET | `/api/v1/audit-logs` | View authorized audit records |
+```bash
+cp .env.example .env
+```
 
-### Operations
+Fill in your local PostgreSQL credentials and application secrets.
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/health/live` | Confirm that Flask is running |
-| GET | `/health/ready` | Confirm that dependencies are ready |
-| GET | `/docs` | Open interactive API documentation |
+### 4. Create your local database
 
-## Preliminary Database Design
+Create your own PostgreSQL database locally and update the `DATABASE_URL` inside `.env`.
 
-The database design will be finalized as its own project subgoal. The initial tables are:
+### 5. Apply database migrations
 
-- `users`: identity, password hash, profile, and account status
-- `roles`: role names and descriptions
-- `permissions`: individual access rights
-- `user_roles`: many-to-many user and role assignments
-- `role_permissions`: many-to-many role and permission assignments
-- `revoked_tokens`: revoked JWT identifiers and expiry information
-- `password_reset_tokens`: hashed, limited-duration reset-token records
-- `audit_logs`: important security events and outcomes
+Whenever migration files exist, run:
 
-Raw passwords and raw access, refresh, or reset tokens must never be stored.
+```bash
+flask db upgrade
+```
 
-## Technology Stack
+### 6. Run the application
 
-| Area | Choice |
-|---|---|
-| Language and framework | Python and Flask |
-| Database | PostgreSQL |
-| ORM and migrations | SQLAlchemy and Flask-Migrate/Alembic |
-| Tokens | Flask-JWT-Extended |
-| Validation | Marshmallow or Pydantic |
-| Documentation | OpenAPI/Swagger |
-| Testing | Pytest and pytest-cov |
-| Code quality | Ruff and Black |
-| Containers | Docker and Docker Compose |
-| Automation | GitHub Actions |
-| Collaboration | Git and GitHub |
+```bash
+python run.py
+```
 
-## Team Roles
+or
 
-Roles show primary ownership, but every member must write code, tests, and documentation and must review another member's work.
+```bash
+flask run
+```
 
-### Mukisa Ben Ezra — Team Lead, Platform and DevOps Engineer
+### 7. Run the tests
 
-- Establish the Flask structure and shared configuration & initial PostgreSQL connection
-- Implement shared errors, responses, and blueprint integration
-- Configure Docker, Docker Compose, GitHub Actions, and project integration
-- Review pull requests and coordinate integration
-- Coordinate milestones and the GitHub issue board
+```bash
+pytest
+```
 
-### Abigaba Patience Sarah — Database and User Management Engineer
 
-- Design PostgreSQL tables and SQLAlchemy models
-- Create migrations and seed data
-- Implement registration, profiles, account status, search, and pagination
-- Test database and user-management behaviour
+---
 
-### Gihozo Patrick — Authentication Engineer
+## Development Guidelines
 
-- Implement password hashing and login
-- Implement access tokens, refresh tokens, logout, and revocation
-- Protect authenticated endpoints and manage the token lifecycle
-- Test authentication and token lifecycle(valid, invalid, expired & revoked) and security failure cases
+Before starting work:
 
-### Kristiana B. Sengonzi — Authorization and Administration Engineer
+- Pull the latest changes from `develop`.
+- Pick or create a GitHub Issue.
+- Create a feature branch from `develop`.
+- Implement both the feature and its tests.
+- Run the test suite before pushing.
+- Open a Pull Request into `develop`.
+- Wait for review before merging.
 
-- Implement roles, permissions, and assignments
-- Implement access-control decorators or middleware
-- Build the simple administration interface
-- Test allowed and denied access scenarios
+> **Important**
+>
+> - Never commit `.env`.
+> - Never modify another member's feature branch.
+> - Never regenerate migrations that already exist in the repository.
+> - If new migration files are added by another teammate, pull the latest changes and run `flask db upgrade`.
 
-### Aber Mercy — Security Support, Testing and Documentation Engineer
 
-- Implement password recovery, account management, audit logging, and health checks
-- Verify secure handling of sensitive information
-- Coordinate automated test configuration and coverage
-- Maintain OpenAPI documentation and deployment instructions
+---
 
-## GitHub Workflow
+# Project Structure Guide
 
-1. Select or create a GitHub issue.
-2. Assign the issue to one member.
-3. Create a small feature branch from the latest `develop`.
-4. Implement the feature and its tests.
-5. Run all local checks.
-6. Push the branch and open a pull request linked to the issue.
-7. Wait for continuous-integration checks.
-8. Obtain at least one peer review.
-9. Correct problems and merge into `develop`.
-10. Test the integrated application before promoting a milestone to `main`.
+Every feature in this project follows the same structure to keep the codebase consistent and easy to maintain.
 
-Suggested branches include `feature/database-models`, `feature/user-management`, `feature/jwt-authentication`, `feature/rbac`, `feature/password-recovery`, `feature/audit-logging`, `feature/docker`, and `feature/ci-testing`.
+```
+app/
+├── users/
+│   ├── routes.py
+│   ├── services.py
+│   └── schemas.py
+```
 
-## 10 days Roadmap
+## `routes.py` — HTTP Endpoints
 
-### Days 1 : Foundation
+Routes receive HTTP requests from clients.
 
-- [ ] Confirm scope and proposal
-- [ ] Create GitHub issues and assign work
-- [ ] Create the Flask project skeleton
-- [ ] Connect PostgreSQL
-- [ ] Establish initial Docker Compose services
-- [ ] Add a health endpoint and setup documentation
+Responsibilities:
 
-**Gate:** Every member can clone and start the same Flask and PostgreSQL environment.
+- Define API endpoints
+- Read request data
+- Validate input using schemas
+- Call service functions
+- Return HTTP responses
 
-### Days 2 : Database and Users
+Routes should **not** contain business logic or database operations.
 
-- [ ] Finalize initial database relationships
-- [ ] Implement models and migrations
-- [ ] Add safe seed roles and permissions
-- [ ] Implement registration and profiles
-- [ ] Add validation and tests
+Example:
 
-**Gate:** A fresh database can be migrated, a user can register, duplicates are rejected, and passwords are hashed.
+```python
+@users_bp.post("/")
+def register():
+    ...
+```
 
-### Days 3-4 : Authentication
+---
 
-- [ ] Implement login
-- [ ] Issue access and refresh tokens
-- [ ] Protect a demonstration endpoint
-- [ ] Implement refresh, logout, and revocation
-- [ ] Test invalid, expired, and revoked tokens
+## `services.py` — Business Logic
 
-**Gate:** The complete login-to-logout lifecycle works and passes automated tests.
+Services contain the application's business rules.
 
-### Days 5-6 : Authorization
+Responsibilities:
 
-- [ ] Implement role and permission operations
-- [ ] Assign roles to users
-- [ ] Enforce permissions on protected endpoints
-- [ ] Add administrator user controls
-- [ ] Add authorization tests
+- Perform validation that depends on business rules
+- Query and modify the database
+- Call helper functions
+- Raise application errors
+- Return results back to routes
 
-**Gate:** Access changes correctly when roles or permissions are assigned or removed.
+Services should not define HTTP endpoints.
 
-### Days 7-8 : Security Support
+---
 
-- [ ] Implement password changing and recovery
-- [ ] Implement account activation and suspension
-- [ ] Record audit events
-- [ ] Add liveness and readiness checks
-- [ ] Verify that sensitive information is not logged
+## `schemas.py` — Request and Response Validation
 
-**Gate:** Reset tokens expire and cannot be reused; important events appear in the audit log.
+Schemas describe what data is accepted and returned.
 
-### Days 9 : DevOps and Integration
+Responsibilities:
 
-- [ ] Finalize Dockerfile and Docker Compose
-- [ ] Configure format, lint, test, migration, and image-build checks
-- [ ] Complete GitHub Actions
-- [ ] Complete Swagger documentation
-- [ ] Test from a clean checkout
+- Validate incoming JSON
+- Serialize responses
+- Reject invalid data before it reaches the service layer
 
-**Gate:** CI passes and the complete environment starts using the documented Compose process.
+Every endpoint that accepts data should use an appropriate schema.
 
-### Days 10 : Submission and Presentation
+---
 
-- [ ] Run final acceptance tests
-- [ ] Capture annotated screenshots
-- [ ] Complete report and presentation slides
-- [ ] Document individual contributions
-- [ ] Rehearse a live demonstration
-- [ ] Tag the final GitHub release
-- [ ] Prepare backup screenshots or a recording
+## `models/`
 
-**Gate:** Another person can access, run, understand, and evaluate the project.
+Models define the database tables using SQLAlchemy.
 
-## Subgoal Completion Rule
+Responsibilities:
 
-A feature is complete only when:
+- Table definitions
+- Relationships
+- Constraints
 
-- Its acceptance conditions are satisfied
-- Its code is committed through a feature branch
-- Relevant automated tests pass
-- Its API behaviour is documented
-- No secret or sensitive value is committed
-- At least one teammate has reviewed it
-- It works after integration into `develop`
+Models should not contain HTTP logic.
 
-## Final Acceptance Checklist
+---
 
-- [ ] Registration securely stores a new user
-- [ ] Login issues valid access and refresh tokens
-- [ ] Protected endpoints reject missing or invalid tokens
-- [ ] Expired and revoked tokens are rejected
-- [ ] Logout revokes the appropriate token
-- [ ] Roles and permissions control access correctly
-- [ ] Ordinary users cannot use administrative endpoints
-- [ ] Suspended users cannot log in
-- [ ] Password reset tokens expire and cannot be reused
-- [ ] Important events are recorded without sensitive values
-- [ ] PostgreSQL schema is reproducible using migrations
-- [ ] API documentation covers all public endpoints
-- [ ] Automated tests and code-quality checks pass
-- [ ] Docker image builds successfully
-- [ ] Docker Compose starts the complete environment
-- [ ] GitHub Actions passes on the final release
-- [ ] The team can demonstrate the project from a clean setup
+## `extensions.py`
+
+Shared Flask extensions are initialized here.
+
+Examples include:
+
+- SQLAlchemy
+- Flask-Migrate
+- JWT Manager
+
+Never create new instances of these extensions inside feature modules.
+
+Use the shared objects imported from `extensions.py`.
+
+---
+
+## `config.py`
+
+Contains application configuration.
+
+Different configurations can be used for:
+
+- Development
+- Testing
+- Production
+
+Do not hardcode secrets or database credentials.
+
+Always use environment variables.
+
+---
+
+## Blueprints
+
+Each module exposes one Blueprint.
+
+Example:
+
+```python
+users_bp
+```
+
+Blueprints are registered only inside `create_app()`.
+
+Do not register blueprints anywhere else.
+
+---
+
+## Tests
+
+Every feature must include automated tests.
+
+Examples:
+
+```
+tests/
+    test_users.py
+    test_authentication.py
+    test_authorization.py
+```
+
+Every new endpoint should include tests for:
+
+- Successful requests
+- Invalid input
+- Unauthorized access (where applicable)
+- Failure cases
+
+---
+
+## Database Migrations
+
+Only generate a migration when you modify SQLAlchemy models.
+
+Workflow:
+
+```
+Modify models
+      ↓
+flask db migrate
+      ↓
+flask db upgrade
+      ↓
+Commit migration files
+```
+
+Other team members should **not** regenerate the same migration.
+
+Instead:
+
+```
+git pull
+flask db upgrade
+```
+
+---
+
+## Decorators
+
+Decorators add reusable behaviour to endpoints.
+
+Examples include:
+
+- Authentication
+- Permission checks
+- Logging
+- Rate limiting
+
+Decorators should contain reusable logic shared by multiple routes.
+
+Avoid duplicating the same authorization checks across different endpoints.
+
+---
+
+## General Rule
+
+Business logic should always follow this flow:
+
+```
+HTTP Request
+      ↓
+Route
+      ↓
+Schema
+      ↓
+Service
+      ↓
+Model
+      ↓
+Database
+```
+
+Never skip layers without a good reason.
+---
