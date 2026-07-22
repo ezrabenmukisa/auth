@@ -1,15 +1,10 @@
-from datetime import datetime, timezone
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.extensions import db
+"""User model."""
 
-# Define the association table for User <-> Role (many-to-many)
-user_roles = db.Table(
-    "user_roles",
-    db.Column("user_id", db.Integer, db.ForeignKey(
-        "users.id"), primary_key=True),
-    db.Column("role_id", db.Integer, db.ForeignKey(
-        "roles.id"), primary_key=True),
-)
+from datetime import datetime, timezone
+
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.extensions import db
 
 
 class User(db.Model):
@@ -34,9 +29,6 @@ class User(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-
-    # Relationships
-    roles = relationship("Role", secondary=user_roles, back_populates="users")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username!r}>"

@@ -18,12 +18,14 @@ def create_app(config_class=Config):
     with app.app_context():
         from app import models
 
+    from app.authentication import authentication_bp
+    from app.cli.seed import seed_db
     from app.health import health_bp
     from app.users import users_bp
 
+    app.register_blueprint(authentication_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(users_bp)
-
-    from app.commands import seed_db
     app.cli.add_command(seed_db)
+
     return app

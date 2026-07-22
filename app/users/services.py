@@ -1,6 +1,6 @@
-"""User registration and profile business logic."""
+"""User creation and profile business logic."""
 
-from werkzeug.security import check_password_hash, generate_password_hash
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.extensions import db
 from app.models.users import User
@@ -18,12 +18,12 @@ class UserNotFoundError(Exception):
     """Raised when a requested user does not exist."""
 
 
-def register_user(data: dict) -> User:
-    """Create a new user account.
+class UserPersistenceError(Exception):
+    """Raised when a user write cannot be persisted."""
 
-    Rejects duplicate usernames/emails and hashes the password before
-    storage
-    """
+
+def create_user(data: dict, password_hash: str) -> User:
+    """Create a user using a password hash supplied by Authentication."""
     if User.query.filter_by(username=data["username"]).first():
         raise DuplicateUserError("username")
 
@@ -33,12 +33,23 @@ def register_user(data: dict) -> User:
     user = User(
         username=data["username"],
         email=data["email"],
-        password_hash=generate_password_hash(data["password"]),
-        full_name=data["full_name"],
+        password_hash=password_hash,
+        full_name=data.get("full_name"),
     )
 
-    db.session.add(user)
-    db.session.commit()
+    try:
+        db.session.add(user)
+        db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        if User.query.filter_by(username=data["username"]).first():
+            raise DuplicateUserError("username") from exc
+        if User.query.filter_by(email=data["email"]).first():
+            raise DuplicateUserError("email") from exc
+        raise UserPersistenceError("Could not create user.") from exc
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        raise UserPersistenceError("Could not create user.") from exc
 
     return user
 
@@ -58,13 +69,12 @@ def update_profile(user_id: int, data: dict) -> User:
     if "full_name" in data:
         user.full_name = (data.get("full_name") or "").strip() or None
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        raise UserPersistenceError("Could not update user profile.") from exc
     return user
-
-
-def verify_password(user: User, password: str) -> bool:
-    """Check a plaintext password against the stored hash."""
-    return check_password_hash(user.password_hash, password)
 
 
 def list_users(search: str | None, page: int, per_page: int):

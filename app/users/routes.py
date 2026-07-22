@@ -4,14 +4,16 @@
 from flask import jsonify, request
 
 from app.users import users_bp
-from app.users.schemas import ValidationError, parse_list_query, validate_registration_data
-
+from app.users.schemas import (
+    ValidationError,
+    parse_list_query,
+    validate_profile_update,
+)
 from app.users.services import (
-    DuplicateUserError,
     UserNotFoundError,
+    UserPersistenceError,
     get_user_by_id,
     list_users,
-    register_user,
     update_profile,
 )
 
@@ -22,27 +24,7 @@ def _serialize_user(user):
         "email": user.email,
         "full_name": user.full_name,
         "is_active": user.is_active,
-        "roles": [role.name for role in user.roles],
     }
-
-
-
-@users_bp.post("/register")
-def register():
-    """Register a new user account."""
-    payload = request.get_json(silent=True) or {}
-
-    try:
-        clean_data = validate_registration_data(payload)
-    except ValidationError as exc:
-        return jsonify(errors=exc.errors), 400
-
-    try:
-        user = register_user(clean_data)
-    except DuplicateUserError as exc:
-        return jsonify(error=str(exc)), 409
-
-    return jsonify(_serialize_user(user)), 201
 
 
 @users_bp.get("/<int:user_id>")
@@ -62,9 +44,14 @@ def patch_profile(user_id):
     payload = request.get_json(silent=True) or {}
 
     try:
-        user = update_profile(user_id, payload)
+        clean_data = validate_profile_update(payload)
+        user = update_profile(user_id, clean_data)
+    except ValidationError as exc:
+        return jsonify(errors=exc.errors), 400
     except UserNotFoundError:
         return jsonify(error="User not found"), 404
+    except UserPersistenceError as exc:
+        return jsonify(error=str(exc)), 500
 
     return jsonify(_serialize_user(user)), 200
 
@@ -72,9 +59,10 @@ def patch_profile(user_id):
 @users_bp.get("/")
 def list_all():
     """List and search users, with pagination."""
-    query_params = parse_list_query(request.args)
-
-    from app.users.services import list_users
+    try:
+        query_params = parse_list_query(request.args)
+    except ValidationError as exc:
+        return jsonify(errors=exc.errors), 400
 
     pagination = list_users(**query_params)
 

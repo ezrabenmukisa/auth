@@ -21,3 +21,4 @@ class TestConfig(Config):
     """Configuration used when running tests."""
 
     TESTING = True
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
