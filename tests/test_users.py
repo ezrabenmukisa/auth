@@ -7,7 +7,6 @@ from app.models.users import User
 from app.users.schemas import ValidationError, validate_user_creation_data
 from app.users.services import DuplicateUserError, create_user
 
-
 TEST_PASSWORD_HASH = "pbkdf2:test-hash-created-by-authentication"
 
 
@@ -137,9 +136,7 @@ def test_update_profile_rejects_unknown_fields(app, client):
 def test_update_profile_rejects_long_full_name(app, client):
     user_id = _create_user(app)
 
-    response = client.patch(
-        f"/api/v1/users/{user_id}", json={"full_name": "x" * 151}
-    )
+    response = client.patch(f"/api/v1/users/{user_id}", json={"full_name": "x" * 151})
 
     assert response.status_code == 400
     assert "full_name" in response.get_json()["errors"]

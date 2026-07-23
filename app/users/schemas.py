@@ -1,4 +1,3 @@
-
 """User request validation schemas."""
 
 
@@ -41,9 +40,7 @@ def validate_profile_update(data: dict) -> dict:
     unknown_fields = set(data) - allowed_fields
 
     if unknown_fields:
-        errors["fields"] = (
-            "Unsupported fields: " + ", ".join(sorted(unknown_fields))
-        )
+        errors["fields"] = "Unsupported fields: " + ", ".join(sorted(unknown_fields))
 
     if "full_name" in data:
         full_name = data["full_name"]
@@ -71,9 +68,7 @@ def parse_list_query(args) -> dict:
 
     errors = {}
     page = _parse_positive_integer(args.get("page", 1), "page", errors)
-    per_page = _parse_positive_integer(
-        args.get("per_page", 10), "per_page", errors
-    )
+    per_page = _parse_positive_integer(args.get("per_page", 10), "per_page", errors)
 
     if per_page is not None and per_page > 100:
         errors["per_page"] = "per_page must not exceed 100."

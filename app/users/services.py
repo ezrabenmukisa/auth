@@ -88,7 +88,6 @@ def list_users(search: str | None, page: int, per_page: int):
         )
 
     stmt = stmt.order_by(User.id)
-    pagination = db.paginate(
-        stmt, page=page, per_page=per_page, error_out=False)
+    pagination = db.paginate(stmt, page=page, per_page=per_page, error_out=False)
 
     return pagination

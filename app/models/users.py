@@ -12,14 +12,14 @@ class User(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(
-        db.String(80), unique=True, nullable=False, index=True)
+        db.String(80), unique=True, nullable=False, index=True
+    )
     email: Mapped[str] = mapped_column(
-        db.String(255), unique=True, nullable=False, index=True)
+        db.String(255), unique=True, nullable=False, index=True
+    )
     password_hash: Mapped[str] = mapped_column(db.String(255), nullable=False)
-    full_name: Mapped[str | None] = mapped_column(
-        db.String(150), nullable=True)
-    is_active: Mapped[bool] = mapped_column(
-        db.Boolean, default=True, nullable=False)
+    full_name: Mapped[str | None] = mapped_column(db.String(150), nullable=True)
+    is_active: Mapped[bool] = mapped_column(db.Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
