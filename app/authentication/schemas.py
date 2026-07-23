@@ -21,15 +21,11 @@ def validate_registration_data(data: dict) -> dict:
     full_name = (data.get("full_name") or "").strip() or None
 
     if not username or len(username) < 3:
-        errors["username"] = (
-            "Username is required and must be at least 3 characters."
-        )
+        errors["username"] = "Username is required and must be at least 3 characters."
     if not email or "@" not in email:
         errors["email"] = "A valid email address is required."
     if not isinstance(password, str) or len(password) < 8:
-        errors["password"] = (
-            "Password is required and must be at least 8 characters."
-        )
+        errors["password"] = "Password is required and must be at least 8 characters."
     if full_name is not None and len(full_name) > 150:
         errors["full_name"] = "Full name must not exceed 150 characters."
 

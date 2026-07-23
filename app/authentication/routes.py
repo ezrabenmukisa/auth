@@ -83,7 +83,7 @@ def logout():
 @authentication_bp.get("/protected")
 @jwt_required()
 def protected():
-    """Demonstrate an endpoint that requires a valid access token."""
+    """Return a protected response for an active authenticated user."""
     try:
         user = get_active_user(get_jwt_identity())
     except AuthenticationError as exc:

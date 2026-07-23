@@ -16,9 +16,12 @@ class RevokedToken(db.Model):
     session_id: Mapped[str] = mapped_column(
         db.String(36), unique=True, nullable=False, index=True
     )
-    expires_at: Mapped[datetime] = mapped_column(db.DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        db.DateTime(timezone=True),
+        nullable=False,
+    )
     revoked_at: Mapped[datetime] = mapped_column(
-        db.DateTime,
+        db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )

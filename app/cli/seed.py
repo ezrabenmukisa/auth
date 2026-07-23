@@ -25,6 +25,4 @@ def seed_db():
     """Run explicit, development-only database seeding."""
     seed_development_data()
     click.echo("Database seed command is available.")
-    click.echo(
-        "No users were seeded because password hashing is not yet implemented."
-    )
+    click.echo("No users were seeded because password hashing is not yet implemented.")

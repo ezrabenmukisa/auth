@@ -1,4 +1,3 @@
-
 """User management HTTP routes."""
 
 from flask import jsonify, request
@@ -16,6 +15,7 @@ from app.users.services import (
     list_users,
     update_profile,
 )
+
 
 def _serialize_user(user):
     return {
