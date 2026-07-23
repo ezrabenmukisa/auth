@@ -32,5 +32,5 @@ def test_migration_creates_only_user_management_schema(app):
             column["name"] for column in inspector.get_columns("users")
         }
 
-    assert table_names == {"alembic_version", "users"}
+    assert table_names == {"alembic_version", "revoked_tokens", "users"}
     assert user_columns == EXPECTED_USER_COLUMNS

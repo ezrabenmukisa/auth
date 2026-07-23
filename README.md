@@ -69,6 +69,23 @@ flask run
 pytest
 ```
 
+### Authentication token usage
+
+Login at `POST /api/v1/auth/login` with a username or email in the
+`identifier` field:
+
+```json
+{
+  "identifier": "newuser",
+  "password": "your-password"
+}
+```
+
+Send JWTs using `Authorization: Bearer <token>`. The refresh endpoint requires
+a refresh token; protected resources require an access token. Logging out with
+either token revokes the complete login session, including its paired access
+and refresh tokens.
+
 
 ---
 
