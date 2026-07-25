@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Access Hub{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
+{% block body %}
+<div id="dashboard-app" data-expected-role="{{ expected_role }}">
+  <aside class="sidebar">
+    <a class="brand light" href="/dashboard">Access<span>Hub</span></a>
+    <nav class="side-nav" aria-label="Dashboard navigation">
+      <button class="nav-item active" data-view="overview">Overview</button>
+      <button class="nav-item admin manager" data-view="roles">Roles</button>
+      <button class="nav-item admin accountant manager" data-view="permissions">Permissions</button>
+      <button class="nav-item admin" data-view="people">People</button>
+      <button class="nav-item" data-view="profile">My profile</button>
+    </nav>
+    <button id="logout-button" class="logout-button">Sign out</button>
+  </aside>
+
+  <main class="dashboard-main">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Workspace</p>
+        <h1 id="page-title">Overview</h1>
+      </div>
+      <button id="account-button" class="identity" type="button" aria-label="Open my profile">
+        <div class="avatar" id="avatar">U</div>
+        <div>
+          <strong id="identity-name">Loading…</strong>
+          <span id="identity-role">Checking access</span>
+        </div>
+      </button>
+    </header>
+
+    <p id="dashboard-message" class="dashboard-message" role="status"></p>
+
+    <section id="overview-view" class="view active">
+      <div class="welcome-card">
+        <div>
+          <p class="eyebrow">Good to see you</p>
+          <h2 id="welcome-title">Preparing your dashboard…</h2>
+          <p id="welcome-copy" class="muted"></p>
+        </div>
+        <span id="role-badge" class="role-badge">Role</span>
+      </div>
+      <div id="overview-metrics" class="metric-grid"></div>
+    </section>
+
+    <section id="roles-view" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">Access structure</p><h2>Roles</h2></div>
+        <button id="refresh-roles" class="button secondary">Refresh</button>
+      </div>
+      <form id="create-role-form" class="inline-form admin">
+        <input name="name" placeholder="Role name" required>
+        <input name="description" placeholder="Description">
+        <button class="button primary" type="submit">Create role</button>
+      </form>
+      <p class="muted section-note admin">Select Manage permissions on a role to adjust exactly what it can do.</p>
+      <div id="roles-list" class="data-grid"></div>
+      <section id="role-permissions-panel" class="management-panel admin" hidden>
+        <div class="section-heading">
+          <div><p class="eyebrow">Role access</p><h3 id="role-permissions-title">Permissions</h3></div>
+          <button id="close-role-permissions" class="button secondary" type="button">Close</button>
+        </div>
+        <div id="role-permissions-list" class="permission-checklist"></div>
+      </section>
+    </section>
+
+    <section id="permissions-view" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">Capabilities</p><h2>Permissions</h2></div>
+        <button id="refresh-permissions" class="button secondary">Refresh</button>
+      </div>
+      <form id="create-permission-form" class="inline-form admin">
+        <input name="name" placeholder="Permission name" required>
+        <input name="description" placeholder="Description">
+        <button class="button primary" type="submit">Create permission</button>
+      </form>
+      <div id="permissions-list" class="data-grid"></div>
+    </section>
+
+    <section id="people-view" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">Team access</p><h2>People</h2></div>
+        <button id="refresh-people" class="button secondary">Refresh</button>
+      </div>
+      <p class="muted section-note">Assign the role each person needs. Passwords and tokens remain private.</p>
+      <form id="people-search-form" class="search-toolbar">
+        <input id="people-search" name="search" placeholder="Search by username or email">
+        <button class="button primary" type="submit">Search</button>
+        <button id="clear-people-search" class="button secondary" type="button">Clear</button>
+      </form>
+      <div id="people-list" class="people-list"></div>
+      <div class="pagination-bar">
+        <button id="people-previous" class="button secondary" type="button">Previous</button>
+        <span id="people-page">Page 1</span>
+        <button id="people-next" class="button secondary" type="button">Next</button>
+      </div>
+    </section>
+
+    <section id="profile-view" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">Account</p><h2>My profile</h2></div>
+      </div>
+      <div class="profile-layout">
+        <article class="profile-card">
+          <div class="avatar profile-avatar" id="profile-avatar">U</div>
+          <h3 id="profile-display-name">Loading…</h3>
+          <p id="profile-username" class="muted"></p>
+          <dl class="profile-details">
+            <div><dt>Email</dt><dd id="profile-email"></dd></div>
+            <div><dt>Role</dt><dd id="profile-role"></dd></div>
+            <div><dt>Status</dt><dd id="profile-status"></dd></div>
+          </dl>
+        </article>
+        <form id="profile-form" class="profile-form">
+          <div>
+            <p class="eyebrow">Profile details</p>
+            <h3>Update your display name</h3>
+            <p class="muted">Your username and email remain your account identifiers.</p>
+          </div>
+          <label>Full name
+            <input id="profile-full-name" name="full_name" maxlength="150">
+          </label>
+          <button class="button primary" type="submit">Save profile</button>
+          <button id="verify-session" class="button secondary" type="button">Verify secure session</button>
+        </form>
+      </div>
+    </section>
+  </main>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

@@ -1,1 +1,0 @@
-"""Authorization feature package."""
