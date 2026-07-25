@@ -1,25 +1,26 @@
-"""Development database seed command."""
-
-import os
+"""RBAC and bootstrap-administrator seed command."""
 
 import click
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.extensions import db
-from app.models.roles import Role
-from app.models.permissions import Permission
-from app.models.users import User
-from app.authentication.services import register_user_account
-from app.users.services import (
-    DuplicateUserError,
-    UserPersistenceError,
+from app.modules.authentication.schemas import (
+    ValidationError as AuthenticationValidationError,
 )
-from app.authorization.services import set_user_role, AuthorizationError
+from app.modules.authentication.schemas import validate_registration_data
+from app.modules.authentication.services import register_user_account
+from app.modules.authorization.services import (
+    AuthorizationPersistenceError,
+    set_user_role,
+)
+from app.extensions import db
+from app.models.permissions import Permission
+from app.models.roles import Role
+from app.models.users import User
+from app.modules.users.services import DuplicateUserError, UserPersistenceError
 
 
 class SeedError(Exception):
-    """Raised when development seed work cannot complete safely."""
-
+    """Raised when seed data cannot be installed safely."""
 
 
 AUTHORIZATION_PERMISSIONS = [
@@ -32,148 +33,133 @@ AUTHORIZATION_PERMISSIONS = [
     ("permissions.read", "View permissions"),
     ("permissions.update", "Edit permissions"),
     ("permissions.delete", "Delete permissions"),
-    ("permissions.assign", "Assign/remove a permission on a role"),
-    
+    ("permissions.assign", "Assign or remove a permission on a role"),
 ]
 
-
 ROLE_PERMISSIONS = {
-    "Employee": [],
-    "Accountant": [
-        "permissions.read",
-    ],
-    "Manager": [
-        "roles.read",
-        "permissions.read",
-    ],
-    "Admin": [name for name, _ in AUTHORIZATION_PERMISSIONS],
+    "Employee": set(),
+    "Accountant": {"permissions.read"},
+    "Manager": {"roles.read", "permissions.read"},
+    "Admin": {name for name, _ in AUTHORIZATION_PERMISSIONS},
 }
 
 ROLE_DESCRIPTIONS = {
-    "Employee": "Default role for new sign-ups",
+    "Employee": "Default role for new registrations",
     "Accountant": "Financial and audit visibility",
-    "Manager": "Limited administrative access",
+    "Manager": "Read-only role and permission visibility",
     "Admin": "Full administrative access",
 }
 
 
-def _get_or_create_role(name):
-    role = db.session.scalar(db.select(Role).where(Role.name == name))
-    if role is None:
-        role = Role(name=name, description=ROLE_DESCRIPTIONS[name])
-        db.session.add(role)
-        db.session.flush()
-    return role
-
-
-def _get_or_create_permission(name, description):
-    permission = db.session.scalar(
-        db.select(Permission).where(Permission.name == name)
-    )
-    if permission is None:
-        permission = Permission(name=name, description=description)
-        db.session.add(permission)
-        db.session.flush()
-    return permission
-
-
-def seed_development_data() -> int:
-    """Idempotent: safe to run multiple times. Returns the admin user's id."""
+def _seed_rbac_data() -> dict[str, Role]:
+    """Create or synchronize roles, permissions, and their mappings."""
     try:
-        
-            # 'Employee' must be created first in a fresh DB so it lands on
-            # id 1 (User.role_id defaults to 1 for new sign-ups).
-            employee_role = _get_or_create_role("Employee")
-            accountant_role = _get_or_create_role("Accountant")
-            manager_role = _get_or_create_role("Manager")
-            admin_role = _get_or_create_role("Admin")
+        roles = {}
+        for name, description in ROLE_DESCRIPTIONS.items():
+            role = db.session.scalar(db.select(Role).where(Role.name == name))
+            if role is None:
+                role = Role(name=name)
+                db.session.add(role)
+            role.description = description
+            roles[name] = role
 
-            roles_by_name = {
-                "Employee": employee_role,
-                "Accountant": accountant_role,
-                "Manager": manager_role,
-                "Admin": admin_role,
-            }
-
-            permissions_by_name = {
-                name: _get_or_create_permission(name, description)
-                for name, description in AUTHORIZATION_PERMISSIONS
-            }
-
-            for role_name, permission_names in ROLE_PERMISSIONS.items():
-                role = roles_by_name[role_name]
-                for permission_name in permission_names:
-                    permission = permissions_by_name[permission_name]
-                    if permission not in role.permissions:
-                        role.permissions.append(permission)
-            db.session.commit()
-
-            if employee_role.id != 1:
-                click.echo(
-                    f"WARNING: 'Employee' role has id {employee_role.id}, not 1. "
-                    "New sign-ups will default to the wrong role."
-                )
-
-            # ---- bootstrap admin user ----
-            admin_email = os.environ.get("SEED_ADMIN_EMAIL", "admin@example.com")
-            admin_username = os.environ.get("SEED_ADMIN_USERNAME", "admin")
-            admin_password = os.environ.get("SEED_ADMIN_PASSWORD")
-
-            if not admin_password:
-                raise SeedError(
-                    "Set SEED_ADMIN_PASSWORD in your environment before seeding "
-                    "(don't hardcode a real password in this file)."
-                )
-
-            existing_admin = db.session.scalar(
-                db.select(User).where(User.email == admin_email)
+        permissions = {}
+        for name, description in AUTHORIZATION_PERMISSIONS:
+            permission = db.session.scalar(
+                db.select(Permission).where(Permission.name == name)
             )
+            if permission is None:
+                permission = Permission(name=name)
+                db.session.add(permission)
+            permission.description = description
+            permissions[name] = permission
 
-            if existing_admin is None:
-                try:
-                    admin_user = register_user_account(
-                        {
-                            "username": admin_username,
-                            "email": admin_email,
-                            "full_name": "System Administrator",
-                            "password": admin_password,
-                        }
-                    )
-                except DuplicateUserError as exc:
-                    raise SeedError(
-                        f"Admin user already exists under a conflicting {exc}."
-                    ) from exc
-                except UserPersistenceError as exc:
-                    raise SeedError("Could not create admin user.") from exc
+        db.session.flush()
+        for role_name, permission_names in ROLE_PERMISSIONS.items():
+            roles[role_name].permissions = [
+                permissions[name] for name in sorted(permission_names)
+            ]
 
-                # register_user_account creates the user with the default
-                # (Employee) role — bump it up to Admin.
-                try:
-                    set_user_role(admin_user.id, admin_role.id)
-                except AuthorizationError as exc:
-                    raise SeedError(
-                        "Admin user created but role assignment failed."
-                    ) from exc
-
-                admin_user_id = admin_user.id
-            else:
-                admin_user_id = existing_admin.id
-
-            return admin_user_id
-
+        db.session.commit()
+        return roles
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise SeedError("Database seeding failed.") from exc
+        raise SeedError("Could not seed RBAC roles and permissions.") from exc
+
+
+def _validate_admin_registration_data(raw_data: dict) -> dict:
+    """Validate bootstrap administrator credentials."""
+    try:
+        return validate_registration_data(raw_data)
+    except AuthenticationValidationError as exc:
+        raise SeedError(f"Invalid administrator details: {exc.errors}") from exc
+
+
+def _seed_admin(admin_role: Role, admin_data: dict) -> User:
+    """Create the bootstrap administrator or reconcile its role."""
+    existing_by_username = db.session.scalar(
+        db.select(User).where(User.username == admin_data["username"])
+    )
+    existing_by_email = db.session.scalar(
+        db.select(User).where(User.email == admin_data["email"])
+    )
+
+    if (
+        existing_by_username is not None
+        and existing_by_email is not None
+        and existing_by_username.id != existing_by_email.id
+    ):
+        raise SeedError("Administrator username and email belong to different users.")
+
+    admin_user = existing_by_username or existing_by_email
+    if admin_user is None:
+        try:
+            admin_user = register_user_account(admin_data)
+        except (DuplicateUserError, UserPersistenceError) as exc:
+            raise SeedError("Could not create the administrator user.") from exc
+    elif (
+        admin_user.username != admin_data["username"]
+        or admin_user.email != admin_data["email"]
+    ):
+        raise SeedError("Administrator credentials conflict with an existing user.")
+
+    if admin_user.role_id != admin_role.id:
+        try:
+            admin_user = set_user_role(admin_user.id, admin_role.id)
+        except AuthorizationPersistenceError as exc:
+            raise SeedError("Could not assign the Admin role.") from exc
+
+    return admin_user
+
+
+def seed_development_data(admin_data: dict) -> int:
+    """Idempotently seed RBAC data and the bootstrap administrator."""
+    validated_admin_data = _validate_admin_registration_data(admin_data)
+    roles = _seed_rbac_data()
+    admin_user = _seed_admin(roles["Admin"], validated_admin_data)
+    return admin_user.id
 
 
 @click.command("seed-db")
 def seed_db():
-    """Run explicit, development-only database seeding.
+    """Seed RBAC data and an interactively configured administrator."""
+    click.echo("Configure the bootstrap administrator.")
+    admin_data = {
+        "username": click.prompt("Admin username").strip(),
+        "email": click.prompt("Admin email").strip(),
+        "full_name": click.prompt(
+            "Admin full name", default="System Administrator"
+        ).strip(),
+        "password": click.prompt(
+            "Admin password", hide_input=True, confirmation_prompt=True
+        ),
+    }
 
-    Requires SEED_ADMIN_PASSWORD to be set in the environment, e.g.:
-        SEED_ADMIN_PASSWORD='Str0ngPass!' flask seed-db
-    """
-    admin_id = seed_development_data()
+    try:
+        admin_id = seed_development_data(admin_data)
+    except SeedError as exc:
+        raise click.ClickException(str(exc)) from exc
+
     click.echo("Seeded roles: Employee, Accountant, Manager, Admin.")
-    click.echo(f"Admin user ready (id={admin_id}). Log in and change the password.")
-    
+    click.echo("Seeded authorization permissions and role mappings.")
+    click.echo(f"Administrator ready (id={admin_id}).")

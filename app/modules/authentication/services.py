@@ -10,12 +10,17 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.models.revoked_tokens import RevokedToken
+from app.models.roles import Role
 from app.models.users import User
-from app.users.services import create_user
+from app.modules.users.services import create_user
 
 
 class AuthenticationError(Exception):
     """Raised when credentials or account state prevent authentication."""
+
+
+class AuthenticationConfigurationError(Exception):
+    """Raised when required authentication setup data is unavailable."""
 
 
 def _parse_user_id(user_id: str) -> int:
@@ -28,9 +33,19 @@ def _parse_user_id(user_id: str) -> int:
 
 def register_user_account(data: dict) -> User:
     """Hash a registration password and delegate user persistence."""
+    employee_role = db.session.scalar(db.select(Role).where(Role.name == "Employee"))
+    if employee_role is None:
+        raise AuthenticationConfigurationError(
+            "Registration is unavailable until RBAC seed data is installed."
+        )
+
     user_data = {key: value for key, value in data.items() if key != "password"}
     password_hash = generate_password_hash(data["password"])
-    return create_user(user_data, password_hash=password_hash)
+    return create_user(
+        user_data,
+        password_hash=password_hash,
+        role=employee_role,
+    )
 
 
 def verify_password(user: User, password: str) -> bool:

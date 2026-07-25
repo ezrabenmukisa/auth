@@ -11,33 +11,19 @@ class ValidationError(Exception):
 
 def validate_role_data(data: dict) -> dict:
     """Validate role creation/update data."""
+    if not isinstance(data, dict):
+        raise ValidationError({"body": "A JSON object is required."})
+
     errors = {}
 
     allowed_fields = {"name", "description"}
     unknown_fields = set(data) - allowed_fields
 
     if unknown_fields:
-        errors["fields"] = (
-            "Unsupported fields: " + ", ".join(sorted(unknown_fields))
-        )
+        errors["fields"] = "Unsupported fields: " + ", ".join(sorted(unknown_fields))
 
-    name = (data.get("name") or "").strip()
-    description = (data.get("description") or "").strip() or None
-
-    if not name:
-        errors["name"] = "Role name is required."
-    elif len(name) > 100:
-        errors["name"] = "Role name must not exceed 100 characters."
-
-    if (
-        description is not None
-        and not isinstance(description, str)
-    ):
-        errors["description"] = "Description must be a string or null."
-    elif description is not None and len(description) > 255:
-        errors["description"] = (
-            "Description must not exceed 255 characters."
-        )
+    name = _validate_name(data.get("name"), "Role", errors)
+    description = _validate_description(data.get("description"), errors)
 
     if errors:
         raise ValidationError(errors)
@@ -50,35 +36,19 @@ def validate_role_data(data: dict) -> dict:
 
 def validate_permission_data(data: dict) -> dict:
     """Validate permission creation/update data."""
+    if not isinstance(data, dict):
+        raise ValidationError({"body": "A JSON object is required."})
+
     errors = {}
 
     allowed_fields = {"name", "description"}
     unknown_fields = set(data) - allowed_fields
 
     if unknown_fields:
-        errors["fields"] = (
-            "Unsupported fields: " + ", ".join(sorted(unknown_fields))
-        )
+        errors["fields"] = "Unsupported fields: " + ", ".join(sorted(unknown_fields))
 
-    name = (data.get("name") or "").strip()
-    description = (data.get("description") or "").strip() or None
-
-    if not name:
-        errors["name"] = "Permission name is required."
-    elif len(name) > 100:
-        errors["name"] = (
-            "Permission name must not exceed 100 characters."
-        )
-
-    if (
-        description is not None
-        and not isinstance(description, str)
-    ):
-        errors["description"] = "Description must be a string or null."
-    elif description is not None and len(description) > 255:
-        errors["description"] = (
-            "Description must not exceed 255 characters."
-        )
+    name = _validate_name(data.get("name"), "Permission", errors)
+    description = _validate_description(data.get("description"), errors)
 
     if errors:
         raise ValidationError(errors)
@@ -91,15 +61,16 @@ def validate_permission_data(data: dict) -> dict:
 
 def validate_user_role_data(data: dict) -> dict:
     """Validate role assignment data."""
+    if not isinstance(data, dict):
+        raise ValidationError({"body": "A JSON object is required."})
+
     errors = {}
 
     allowed_fields = {"role_id"}
     unknown_fields = set(data) - allowed_fields
 
     if unknown_fields:
-        errors["fields"] = (
-            "Unsupported fields: " + ", ".join(sorted(unknown_fields))
-        )
+        errors["fields"] = "Unsupported fields: " + ", ".join(sorted(unknown_fields))
 
     role_id = _parse_positive_integer(
         data.get("role_id"),
@@ -128,3 +99,29 @@ def _parse_positive_integer(value, field: str, errors: dict) -> int | None:
         return None
 
     return parsed
+
+
+def _validate_name(value, label: str, errors: dict) -> str:
+    """Validate a role or permission name."""
+    if not isinstance(value, str) or not value.strip():
+        errors["name"] = f"{label} name is required."
+        return ""
+
+    name = value.strip()
+    if len(name) > 100:
+        errors["name"] = f"{label} name must not exceed 100 characters."
+    return name
+
+
+def _validate_description(value, errors: dict) -> str | None:
+    """Validate an optional description."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        errors["description"] = "Description must be a string or null."
+        return None
+
+    description = value.strip() or None
+    if description is not None and len(description) > 255:
+        errors["description"] = "Description must not exceed 255 characters."
+    return description

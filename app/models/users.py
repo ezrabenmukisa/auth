@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy.orm import Mapped, mapped_column,relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.extensions import db
 
@@ -30,15 +30,12 @@ class User(db.Model):
         nullable=False,
     )
 
-    role_id :Mapped[int]=mapped_column(
+    role_id: Mapped[int] = mapped_column(
         db.Integer,
         db.ForeignKey("roles.id"),
         nullable=False,
-        default=1,  # Default to Employee role
-
     )
-
-    role=relationship("Role",back_populates="users")
+    role = relationship("Role", back_populates="users")
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username!r}>"

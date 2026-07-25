@@ -1,4 +1,4 @@
-""" authorization business logic."""
+"""Authorization business logic."""
 
 from functools import wraps
 
@@ -6,7 +6,7 @@ from flask import jsonify
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.authentication.services import (
+from app.modules.authentication.services import (
     AuthenticationError,
     get_active_user,
 )
@@ -14,7 +14,7 @@ from app.extensions import db
 from app.models.permissions import Permission
 from app.models.roles import Role
 from app.models.users import User
-from app.users.services import UserNotFoundError
+from app.modules.users.services import UserNotFoundError
 
 
 class AuthorizationError(Exception):
@@ -26,9 +26,7 @@ class AuthorizationPersistenceError(Exception):
 
 
 def create_role(name, description):
-    existing_role = db.session.scalar(
-        db.select(Role).where(Role.name == name)
-    )
+    existing_role = db.session.scalar(db.select(Role).where(Role.name == name))
 
     if existing_role is not None:
         raise AuthorizationError("Role already exists.")
@@ -43,9 +41,7 @@ def create_role(name, description):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not create role."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not create role.") from exc
 
     return role
 
@@ -60,9 +56,7 @@ def get_role(role_id):
 
 
 def get_roles():
-    return db.session.scalars(
-        db.select(Role)
-    ).all()
+    return db.session.scalars(db.select(Role)).all()
 
 
 def get_user_role(user_id):
@@ -80,9 +74,7 @@ def update_role(role_id, new_name, new_description):
     if role is None:
         raise AuthorizationError("Role not found.")
 
-    existing_role = db.session.scalar(
-        db.select(Role).where(Role.name == new_name)
-    )
+    existing_role = db.session.scalar(db.select(Role).where(Role.name == new_name))
 
     if existing_role is not None and existing_role.id != role_id:
         raise AuthorizationError("Role already exists.")
@@ -94,9 +86,7 @@ def update_role(role_id, new_name, new_description):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not update role."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not update role.") from exc
 
     return role
 
@@ -118,9 +108,7 @@ def delete_role(role_id):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not delete role."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not delete role.") from exc
 
     return role
 
@@ -143,9 +131,7 @@ def create_permission(name, description):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not create permission."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not create permission.") from exc
 
     return permission
 
@@ -160,9 +146,7 @@ def get_permission(permission_id):
 
 
 def get_permissions():
-    return db.session.scalars(
-        db.select(Permission)
-    ).all()
+    return db.session.scalars(db.select(Permission)).all()
 
 
 def update_permission(permission_id, new_name, new_description):
@@ -175,10 +159,7 @@ def update_permission(permission_id, new_name, new_description):
         db.select(Permission).where(Permission.name == new_name)
     )
 
-    if (
-        existing_permission is not None
-        and existing_permission.id != permission_id
-    ):
+    if existing_permission is not None and existing_permission.id != permission_id:
         raise AuthorizationError("Permission already exists.")
 
     permission.name = new_name
@@ -188,9 +169,7 @@ def update_permission(permission_id, new_name, new_description):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not update permission."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not update permission.") from exc
 
     return permission
 
@@ -206,9 +185,7 @@ def delete_permission(permission_id):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not delete permission."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not delete permission.") from exc
 
     return permission
 
@@ -239,14 +216,15 @@ def set_user_role(user_id, role_id):
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise AuthorizationPersistenceError(
-            "Could not assign role to user."
-        ) from exc
+        raise AuthorizationPersistenceError("Could not assign role to user.") from exc
 
     return user
 
 
 def has_permission(user, permission_name):
+    if user.role is None:
+        return False
+
     for permission in user.role.permissions:
         if permission.name == permission_name:
             return True
@@ -266,9 +244,7 @@ def assign_permission_to_role(role_id, permission_id):
         raise AuthorizationError("Permission not found.")
 
     if permission in role.permissions:
-        raise AuthorizationError(
-            "Permission is already assigned to the role."
-        )
+        raise AuthorizationError("Permission is already assigned to the role.")
 
     role.permissions.append(permission)
 
@@ -295,9 +271,7 @@ def remove_permission_from_role(role_id, permission_id):
         raise AuthorizationError("Permission not found.")
 
     if permission not in role.permissions:
-        raise AuthorizationError(
-            "Permission is not assigned to the role."
-        )
+        raise AuthorizationError("Permission is not assigned to the role.")
 
     role.permissions.remove(permission)
 

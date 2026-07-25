@@ -22,7 +22,7 @@ class UserPersistenceError(Exception):
     """Raised when a user write cannot be persisted."""
 
 
-def create_user(data: dict, password_hash: str) -> User:
+def create_user(data: dict, password_hash: str, role=None) -> User:
     """Create a user using a password hash supplied by Authentication."""
     if User.query.filter_by(username=data["username"]).first():
         raise DuplicateUserError("username")
@@ -35,6 +35,7 @@ def create_user(data: dict, password_hash: str) -> User:
         email=data["email"],
         password_hash=password_hash,
         full_name=data.get("full_name"),
+        role=role,
     )
 
     try:

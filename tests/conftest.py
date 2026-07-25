@@ -5,6 +5,7 @@ import pytest
 from app import create_app
 from app.config import TestConfig
 from app.extensions import db
+from app.models.roles import Role
 
 
 @pytest.fixture
@@ -14,6 +15,13 @@ def app():
 
     with application.app_context():
         db.create_all()
+        db.session.add(
+            Role(
+                name="Employee",
+                description="Default role for new registrations",
+            )
+        )
+        db.session.commit()
         yield application
         db.session.remove()
         db.drop_all()

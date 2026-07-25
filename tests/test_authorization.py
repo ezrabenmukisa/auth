@@ -1,13 +1,15 @@
-
 import pytest
+from flask_jwt_extended import create_access_token
 from werkzeug.security import generate_password_hash
 
+from app.modules.authentication.services import issue_token_pair
+from app.cli.seed import seed_development_data
 from app.extensions import db
 from app.models.users import User
 from app.models.roles import Role
 from app.models.permissions import Permission
 
-from app.authorization.services import (
+from app.modules.authorization.services import (
     AuthorizationError,
     AuthorizationPersistenceError,
     create_role,
@@ -19,18 +21,18 @@ from app.authorization.services import (
     has_permission,
 )
 
-from app.authorization.schemas import (
+from app.modules.authorization.schemas import (
     ValidationError,
     validate_role_data,
     validate_user_role_data,
 )
 
-from app.users.services import UserNotFoundError
-
+from app.modules.users.services import UserNotFoundError
 
 # -------------------------------------------------
 # Helpers
 # -------------------------------------------------
+
 
 def make_role(name="tester_role", permissions=None):
     role = Role(
@@ -74,9 +76,31 @@ def make_user(username, email, role, is_active=True):
     return user
 
 
+def seed_rbac(_monkeypatch):
+    seed_development_data(
+        {
+            "username": "authorization-admin",
+            "email": "authorization-admin@example.com",
+            "password": "secure-admin-password",
+            "full_name": "Authorization Admin",
+        }
+    )
+
+
+def access_token_for_role(role_name, suffix):
+    role = Role.query.filter_by(name=role_name).one()
+    user = make_user(
+        f"{role_name.lower()}-{suffix}",
+        f"{role_name.lower()}-{suffix}@example.com",
+        role,
+    )
+    return issue_token_pair(user)["access_token"]
+
+
 # -------------------------------------------------
 # Service Tests
 # -------------------------------------------------
+
 
 class TestCreateRole:
 
@@ -150,9 +174,7 @@ class TestPermissionAssignment:
     def test_assign_permission(self, app):
         role = make_role("writer")
 
-        permission = make_permission(
-            "articles.publish"
-        )
+        permission = make_permission("articles.publish")
 
         updated = assign_permission_to_role(
             role.id,
@@ -164,9 +186,7 @@ class TestPermissionAssignment:
     def test_assign_duplicate_permission(self, app):
         role = make_role("writer2")
 
-        permission = make_permission(
-            "articles.publish2"
-        )
+        permission = make_permission("articles.publish2")
 
         assign_permission_to_role(
             role.id,
@@ -180,9 +200,7 @@ class TestPermissionAssignment:
             )
 
     def test_remove_permission(self, app):
-        permission = make_permission(
-            "articles.archive"
-        )
+        permission = make_permission("articles.archive")
 
         role = make_role(
             "archiver",
@@ -199,9 +217,7 @@ class TestPermissionAssignment:
     def test_remove_missing_permission(self, app):
         role = make_role("empty")
 
-        permission = make_permission(
-            "unused.permission"
-        )
+        permission = make_permission("unused.permission")
 
         with pytest.raises(AuthorizationError):
             remove_permission_from_role(
@@ -257,9 +273,7 @@ class TestSetUserRole:
 class TestHasPermission:
 
     def test_permission_true(self, app):
-        permission = make_permission(
-            "things.do"
-        )
+        permission = make_permission("things.do")
 
         role = make_role(
             "doer",
@@ -272,10 +286,13 @@ class TestHasPermission:
             role,
         )
 
-        assert has_permission(
-            user,
-            "things.do",
-        ) is True
+        assert (
+            has_permission(
+                user,
+                "things.do",
+            )
+            is True
+        )
 
     def test_permission_false(self, app):
         role = make_role("empty_role")
@@ -286,12 +303,23 @@ class TestHasPermission:
             role,
         )
 
-        assert has_permission(
-            user,
-            "things.do",
-        ) is False
+        assert (
+            has_permission(
+                user,
+                "things.do",
+            )
+            is False
+        )
+
+    def test_user_without_role_has_no_permissions(self, app):
+        class UserWithoutRole:
+            role = None
+
+        assert has_permission(UserWithoutRole(), "roles.read") is False
+
 
 # ---------- validation schema tests ----------
+
 
 class TestValidateRoleData:
     def test_valid_data_passes(self):
@@ -307,6 +335,12 @@ class TestValidateRoleData:
         with pytest.raises(ValidationError) as exc_info:
             validate_role_data({"name": "x", "unexpected": "field"})
         assert "fields" in exc_info.value.errors
+
+    def test_non_string_fields_raise_validation_error(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_role_data({"name": 123, "description": []})
+
+        assert set(exc_info.value.errors) == {"name", "description"}
 
 
 class TestValidateUserRoleData:
@@ -331,6 +365,7 @@ class TestValidateUserRoleData:
 # Persistence Errors
 # -------------------------------------------------
 
+
 class TestPersistenceErrors:
 
     def test_create_role_wraps_db_failure(
@@ -349,9 +384,7 @@ class TestPersistenceErrors:
             explode,
         )
 
-        with pytest.raises(
-            AuthorizationPersistenceError
-        ):
+        with pytest.raises(AuthorizationPersistenceError):
             create_role(
                 "failure_role",
                 None,
@@ -362,14 +395,133 @@ class TestPersistenceErrors:
 # Basic Route Tests
 # -------------------------------------------------
 
+
 class TestRouteAccessControl:
 
     def test_requires_authentication(
         self,
         client,
     ):
-        response = client.get(
-            "/api/v1/authorization/roles"
-        )
+        response = client.get("/api/v1/authorization/roles")
 
         assert response.status_code == 401
+
+    def test_user_without_role_receives_forbidden(
+        self,
+        app,
+        client,
+        monkeypatch,
+    ):
+        class UserWithoutRole:
+            role = None
+
+        monkeypatch.setattr(
+            "app.modules.authorization.services.get_active_user",
+            lambda _identity: UserWithoutRole(),
+        )
+        token = create_access_token(identity="1")
+
+        response = client.get(
+            "/api/v1/authorization/roles",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403
+
+    def test_admin_can_read_and_create_roles(
+        self,
+        app,
+        client,
+        monkeypatch,
+    ):
+        seed_rbac(monkeypatch)
+        admin = User.query.filter_by(username="authorization-admin").one()
+        token = issue_token_pair(admin)["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        read_response = client.get(
+            "/api/v1/authorization/roles",
+            headers=headers,
+        )
+        create_response = client.post(
+            "/api/v1/authorization/roles",
+            headers=headers,
+            json={"name": "Auditor", "description": "Audit access"},
+        )
+
+        assert read_response.status_code == 200
+        assert create_response.status_code == 201
+
+    def test_manager_has_read_only_access(
+        self,
+        app,
+        client,
+        monkeypatch,
+    ):
+        seed_rbac(monkeypatch)
+        token = access_token_for_role("Manager", "reader")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        assert (
+            client.get(
+                "/api/v1/authorization/roles",
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                "/api/v1/authorization/permissions",
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.post(
+                "/api/v1/authorization/roles",
+                headers=headers,
+                json={"name": "Forbidden"},
+            ).status_code
+            == 403
+        )
+
+    def test_accountant_only_reads_permissions(
+        self,
+        app,
+        client,
+        monkeypatch,
+    ):
+        seed_rbac(monkeypatch)
+        token = access_token_for_role("Accountant", "reader")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        assert (
+            client.get(
+                "/api/v1/authorization/permissions",
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                "/api/v1/authorization/roles",
+                headers=headers,
+            ).status_code
+            == 403
+        )
+
+    def test_employee_is_denied_administrative_access(
+        self,
+        app,
+        client,
+        monkeypatch,
+    ):
+        seed_rbac(monkeypatch)
+        token = access_token_for_role("Employee", "basic")
+
+        response = client.get(
+            "/api/v1/authorization/roles",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403

@@ -3,13 +3,14 @@
 from flask import jsonify, request
 from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
-from app.authentication import authentication_bp
-from app.authentication.schemas import (
+from app.modules.authentication import authentication_bp
+from app.modules.authentication.schemas import (
     ValidationError,
     validate_login_data,
     validate_registration_data,
 )
-from app.authentication.services import (
+from app.modules.authentication.services import (
+    AuthenticationConfigurationError,
     AuthenticationError,
     authenticate_user,
     get_active_user,
@@ -18,7 +19,7 @@ from app.authentication.services import (
     register_user_account,
     revoke_session,
 )
-from app.users.services import DuplicateUserError, UserPersistenceError
+from app.modules.users.services import DuplicateUserError, UserPersistenceError
 
 
 def _serialize_user(user):
@@ -42,6 +43,8 @@ def register():
         return jsonify(errors=exc.errors), 400
     except DuplicateUserError as exc:
         return jsonify(error=str(exc)), 409
+    except AuthenticationConfigurationError as exc:
+        return jsonify(error=str(exc)), 503
     except UserPersistenceError as exc:
         return jsonify(error=str(exc)), 500
     return jsonify(_serialize_user(user)), 201
@@ -89,3 +92,17 @@ def protected():
     except AuthenticationError as exc:
         return jsonify(error=str(exc)), 401
     return jsonify(message="Protected resource accessed.", user_id=user.id), 200
+
+
+@authentication_bp.get("/me")
+@jwt_required()
+def current_user():
+    """Return the active authenticated user's public account details."""
+    try:
+        user = get_active_user(get_jwt_identity())
+    except AuthenticationError as exc:
+        return jsonify(error=str(exc)), 401
+
+    response = _serialize_user(user)
+    response["role"] = user.role.name if user.role is not None else None
+    return jsonify(response), 200

@@ -1,11 +1,13 @@
 """Tests for user creation and user-management HTTP behavior."""
 
 import pytest
+from flask_jwt_extended import create_access_token
 
 from app.extensions import db
 from app.models.users import User
-from app.users.schemas import ValidationError, validate_user_creation_data
-from app.users.services import DuplicateUserError, create_user
+from app.models.roles import Role
+from app.modules.users.schemas import ValidationError, validate_user_creation_data
+from app.modules.users.services import DuplicateUserError, create_user
 
 TEST_PASSWORD_HASH = "pbkdf2:test-hash-created-by-authentication"
 
@@ -20,8 +22,21 @@ def _create_user(app, number=1, **overrides):
 
     with app.app_context():
         clean_data = validate_user_creation_data(payload)
-        user = create_user(clean_data, password_hash=TEST_PASSWORD_HASH)
+        employee_role = db.session.scalar(
+            db.select(Role).where(Role.name == "Employee")
+        )
+        user = create_user(
+            clean_data,
+            password_hash=TEST_PASSWORD_HASH,
+            role=employee_role,
+        )
         return user.id
+
+
+def _auth_headers(app, user_id):
+    with app.app_context():
+        token = create_access_token(identity=str(user_id))
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_registration_http_route_is_disabled(client):
@@ -93,7 +108,9 @@ def test_user_creation_requires_username_and_email():
 def test_get_profile_success(app, client):
     user_id = _create_user(app)
 
-    response = client.get(f"/api/v1/users/{user_id}")
+    response = client.get(
+        f"/api/v1/users/{user_id}", headers=_auth_headers(app, user_id)
+    )
 
     assert response.status_code == 200
     assert response.get_json() == {
@@ -105,17 +122,32 @@ def test_get_profile_success(app, client):
     }
 
 
-def test_get_profile_not_found(client):
-    response = client.get("/api/v1/users/999")
+def test_get_profile_not_found(app, client):
+    user_id = _create_user(app)
+    response = client.get("/api/v1/users/999", headers=_auth_headers(app, user_id))
 
     assert response.status_code == 404
+
+
+def test_get_profile_rejects_another_user(app, client):
+    first_user_id = _create_user(app, 1)
+    second_user_id = _create_user(app, 2)
+
+    response = client.get(
+        f"/api/v1/users/{second_user_id}",
+        headers=_auth_headers(app, first_user_id),
+    )
+
+    assert response.status_code == 403
 
 
 def test_update_profile_success(app, client):
     user_id = _create_user(app)
 
     response = client.patch(
-        f"/api/v1/users/{user_id}", json={"full_name": "Updated Name"}
+        f"/api/v1/users/{user_id}",
+        json={"full_name": "Updated Name"},
+        headers=_auth_headers(app, user_id),
     )
 
     assert response.status_code == 200
@@ -126,7 +158,9 @@ def test_update_profile_rejects_unknown_fields(app, client):
     user_id = _create_user(app)
 
     response = client.patch(
-        f"/api/v1/users/{user_id}", json={"email": "changed@example.com"}
+        f"/api/v1/users/{user_id}",
+        json={"email": "changed@example.com"},
+        headers=_auth_headers(app, user_id),
     )
 
     assert response.status_code == 400
@@ -136,16 +170,37 @@ def test_update_profile_rejects_unknown_fields(app, client):
 def test_update_profile_rejects_long_full_name(app, client):
     user_id = _create_user(app)
 
-    response = client.patch(f"/api/v1/users/{user_id}", json={"full_name": "x" * 151})
+    response = client.patch(
+        f"/api/v1/users/{user_id}",
+        json={"full_name": "x" * 151},
+        headers=_auth_headers(app, user_id),
+    )
 
     assert response.status_code == 400
     assert "full_name" in response.get_json()["errors"]
 
 
-def test_update_profile_not_found(client):
-    response = client.patch("/api/v1/users/999", json={"full_name": "Nobody"})
+def test_update_profile_not_found(app, client):
+    user_id = _create_user(app)
+    response = client.patch(
+        "/api/v1/users/999",
+        json={"full_name": "Nobody"},
+        headers=_auth_headers(app, user_id),
+    )
 
     assert response.status_code == 404
+
+
+def test_profile_routes_require_authentication(app, client):
+    user_id = _create_user(app)
+
+    assert client.get(f"/api/v1/users/{user_id}").status_code == 401
+    assert (
+        client.patch(
+            f"/api/v1/users/{user_id}", json={"full_name": "Changed"}
+        ).status_code
+        == 401
+    )
 
 
 def test_list_users_success(app, client):

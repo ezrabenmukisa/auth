@@ -1,3 +1,20 @@
+# Authentication and Role-Based Authorization Service
+
+A modular Flask service for user accounts, JWT authentication, session
+revocation, roles, permissions, and role-specific dashboards.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Application setup](docs/setup.md)
+- [Architecture](docs/architecture.md)
+- [API reference](docs/api.md)
+- [Authentication and token lifecycle](docs/authentication.md)
+- [Authorization and seeded access](docs/authorization.md)
+- [Database and migrations](docs/database.md)
+- [Testing and quality checks](docs/testing.md)
+- [Contributing](docs/CONTRIBUTE.md)
+- [Academic project proposal](docs/PROPOSAL.md)
 
 ## Getting Started
 
@@ -39,19 +56,40 @@ cp .env.example .env
 
 Fill in your local PostgreSQL credentials and application secrets.
 
-### 4. Create your local database
+### 4. Create the local PostgreSQL database
 
 Create your own PostgreSQL database locally and update the `DATABASE_URL` inside `.env`.
 
 ### 5. Apply database migrations
 
-Whenever migration files exist, run:
+Create or update the application schema using the committed Alembic migrations:
 
 ```bash
 flask db upgrade
 ```
 
-### 6. Run the application
+This command preserves existing data and applies only migrations that have not
+already run.
+
+### 6. Seed roles, permissions, and the first administrator
+
+Run the interactive bootstrap command:
+
+```bash
+flask seed-db
+```
+
+Enter the administrator's username, email, full name, and password when
+prompted. Password input is hidden and must be confirmed.
+
+The command creates or synchronizes the Employee, Accountant, Manager, and
+Admin roles, their permissions, and the bootstrap administrator. It is
+idempotent, so running it again does not create duplicate seed records.
+
+New accounts created through registration receive the Employee role. Therefore,
+run `flask seed-db` before accepting registrations.
+
+### 7. Run the application
 
 ```bash
 python run.py
@@ -63,13 +101,54 @@ or
 flask run
 ```
 
-### 7. Run the tests
+Open the application at:
 
-```bash
-pytest
+```text
+http://localhost:5000
 ```
 
-### Authentication token usage
+Useful pages:
+
+- `/login` — sign in using a username or email
+- `/register` — create an Employee account
+- `/dashboard` — redirect to the dashboard for the signed-in user's role
+
+### 8. Verify the health endpoint
+
+```bash
+curl http://localhost:5000/health/live
+```
+
+### 9. Run quality checks
+
+```bash
+pytest -v
+ruff check .
+black --check .
+```
+
+## Resetting the local development database
+
+> **Warning:** The following command deletes all application data, including
+> users, roles, permissions, and revoked-token sessions. Use it only for a local
+> development database that is safe to erase.
+
+Downgrade the schema to the Alembic base, rebuild it from the committed
+migrations, and run the interactive seed command:
+
+```bash
+flask db downgrade base && flask db upgrade && flask seed-db
+```
+
+Do not use this reset workflow for a production or shared database.
+
+For normal development updates after pulling new migrations, use only:
+
+```bash
+flask db upgrade
+```
+
+## Authentication token usage
 
 Login at `POST /api/v1/auth/login` with a username or email in the
 `identifier` field:
@@ -117,10 +196,14 @@ Every feature in this project follows the same structure to keep the codebase co
 
 ```
 app/
-├── users/
-│   ├── routes.py
-│   ├── services.py
-│   └── schemas.py
+├── modules/
+│   ├── authentication/
+│   ├── authorization/
+│   ├── security/
+│   └── users/
+│       ├── routes.py
+│       ├── services.py
+│       └── schemas.py
 ```
 
 ## `routes.py` — HTTP Endpoints

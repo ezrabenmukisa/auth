@@ -3,14 +3,14 @@
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
 
-from app.authorization import authorization_bp
-from app.authorization.schemas import (
+from app.modules.authorization import authorization_bp
+from app.modules.authorization.schemas import (
     ValidationError,
     validate_permission_data,
     validate_role_data,
     validate_user_role_data,
 )
-from app.authorization.services import (
+from app.modules.authorization.services import (
     AuthorizationError,
     AuthorizationPersistenceError,
     assign_permission_to_role,
@@ -30,11 +30,14 @@ from app.authorization.services import (
     update_permission,
     update_role,
 )
-from app.users.services import UserNotFoundError
+from app.modules.users.services import UserNotFoundError
 
 
 def _serialize_role(role):
     """Convert a Role model into JSON."""
+    if role is None:
+        return None
+
     return {
         "id": role.id,
         "name": role.name,
@@ -85,9 +88,7 @@ def get_roles_route():
     """Return all roles."""
     roles = get_roles()
 
-    return jsonify(
-        [_serialize_role(role) for role in roles]
-    )
+    return jsonify([_serialize_role(role) for role in roles])
 
 
 @authorization_bp.get("/roles/<int:role_id>")
@@ -150,6 +151,7 @@ def delete_role_route(role_id):
 
     return jsonify(message="Role deleted successfully.")
 
+
 @authorization_bp.get("/users/<int:user_id>/role")
 @jwt_required()
 @require_permission("roles.read")
@@ -163,6 +165,7 @@ def get_user_role_route(user_id):
         return jsonify(error=str(exc)), 404
 
     return jsonify(_serialize_role(role))
+
 
 @authorization_bp.post("/permissions")
 @jwt_required()
@@ -198,12 +201,7 @@ def get_permissions_route():
     """Return all permissions."""
     permissions = get_permissions()
 
-    return jsonify(
-        [
-            _serialize_permission(permission)
-            for permission in permissions
-        ]
-    )
+    return jsonify([_serialize_permission(permission) for permission in permissions])
 
 
 @authorization_bp.get("/permissions/<int:permission_id>")
@@ -264,9 +262,9 @@ def delete_permission_route(permission_id):
     except AuthorizationPersistenceError as exc:
         return jsonify(error=str(exc)), 500
 
-    return jsonify(
-        message="Permission deleted successfully."
-    )
+    return jsonify(message="Permission deleted successfully.")
+
+
 @authorization_bp.get("/roles/<int:role_id>/permissions")
 @jwt_required()
 @require_permission("permissions.read")
@@ -279,17 +277,10 @@ def get_role_permissions_route(role_id):
     except AuthorizationError as exc:
         return jsonify(error=str(exc)), 404
 
-    return jsonify(
-        [
-            _serialize_permission(permission)
-            for permission in permissions
-        ]
-    )
+    return jsonify([_serialize_permission(permission) for permission in permissions])
 
 
-@authorization_bp.post(
-    "/roles/<int:role_id>/permissions/<int:permission_id>"
-)
+@authorization_bp.post("/roles/<int:role_id>/permissions/<int:permission_id>")
 @jwt_required()
 @require_permission("permissions.assign")
 def assign_permission_to_role_route(
@@ -313,9 +304,7 @@ def assign_permission_to_role_route(
     return jsonify(_serialize_role(role))
 
 
-@authorization_bp.delete(
-    "/roles/<int:role_id>/permissions/<int:permission_id>"
-)
+@authorization_bp.delete("/roles/<int:role_id>/permissions/<int:permission_id>")
 @jwt_required()
 @require_permission("permissions.assign")
 def remove_permission_from_role_route(

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Create account · Access Hub{% endblock %}
+{% block body_class %}auth-page{% endblock %}
+{% block body %}
+<main class="auth-layout">
+  <section class="brand-panel register-brand">
+    <a class="brand" href="/">Access<span>Hub</span></a>
+    <div class="brand-copy">
+      <p class="eyebrow">Join your team</p>
+      <h1>Start with secure employee access.</h1>
+      <p>Your account begins as Employee. An administrator can assign another role when needed.</p>
+    </div>
+    <p class="brand-footnote">Passwords are securely hashed before storage</p>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-card">
+      <p class="eyebrow">Create account</p>
+      <h2>Set up your profile</h2>
+      <p class="muted">Use details your organization will recognize.</p>
+
+      <form id="register-form" class="form-stack" novalidate>
+        <label>
+          Full name <span class="optional">Optional</span>
+          <input id="full-name" name="full_name" autocomplete="name">
+        </label>
+        <label>
+          Username
+          <input id="username" name="username" autocomplete="username" minlength="3" required>
+        </label>
+        <label>
+          Work email
+          <input id="email" name="email" type="email" autocomplete="email" required>
+        </label>
+        <label>
+          Password
+          <span class="password-field">
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+            <button class="password-toggle" type="button" data-password-toggle="password"
+                    aria-label="Show password" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+                <circle cx="12" cy="12" r="2.75"/>
+              </svg>
+            </button>
+          </span>
+        </label>
+        <label>
+          Confirm password
+          <span class="password-field">
+            <input id="confirm-password" name="confirm_password" type="password"
+                   autocomplete="new-password" minlength="8" required>
+            <button class="password-toggle" type="button"
+                    data-password-toggle="confirm-password"
+                    aria-label="Show password" aria-pressed="false">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+                <circle cx="12" cy="12" r="2.75"/>
+              </svg>
+            </button>
+          </span>
+        </label>
+        <p id="form-message" class="form-message" role="alert"></p>
+        <button class="button primary" type="submit">Create account</button>
+      </form>
+
+      <p class="auth-switch">Already registered? <a href="/login">Sign in</a></p>
+    </div>
+  </section>
+</main>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/register.js') }}"></script>
+{% endblock %}

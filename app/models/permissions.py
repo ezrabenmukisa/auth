@@ -1,23 +1,28 @@
-"""Permission model"""
+"""Permission model."""
 
-from sqlalchemy.orm import Mapped,mapped_column,relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.extensions import db
 
+
 class Permission(db.Model):
-    __tablename__="permissions"
+    """Represent one named authorization capability."""
 
-    id:Mapped[int]=mapped_column(primary_key=True)
+    __tablename__ = "permissions"
 
-    name:Mapped[str]=mapped_column(
-        db.String(50),
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(
+        db.String(100),
         unique=True,
-        nullable=False
+        nullable=False,
     )
-
-    description:Mapped[str|None]=mapped_column(
+    description: Mapped[str | None] = mapped_column(
         db.String(255),
-        nullable=True
+        nullable=True,
     )
 
-    roles=relationship("Role",secondary="role_permissions",back_populates="permissions")
-      
+    roles = relationship(
+        "Role",
+        secondary="role_permissions",
+        back_populates="permissions",
+    )

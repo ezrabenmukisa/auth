@@ -5,9 +5,10 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from flask_jwt_extended import create_access_token, create_refresh_token, decode_token
 
-from app.authentication.services import revoke_session, verify_password
+from app.modules.authentication.services import revoke_session, verify_password
 from app.extensions import db
 from app.models.revoked_tokens import RevokedToken
+from app.models.roles import Role
 from app.models.users import User
 
 VALID_REGISTRATION = {
@@ -48,6 +49,21 @@ def test_registration_hashes_password_and_returns_safe_user(app, client):
         user = User.query.filter_by(username="newuser").one()
         assert user.password_hash != VALID_REGISTRATION["password"]
         assert verify_password(user, VALID_REGISTRATION["password"])
+        assert user.role.name == "Employee"
+
+
+def test_registration_reports_missing_employee_role(app, client):
+    with app.app_context():
+        employee_role = Role.query.filter_by(name="Employee").one()
+        db.session.delete(employee_role)
+        db.session.commit()
+
+    response = _register(client)
+
+    assert response.status_code == 503
+    assert "RBAC seed data" in response.get_json()["error"]
+    with app.app_context():
+        assert User.query.count() == 0
 
 
 def test_registration_rejects_empty_body(client):
