@@ -43,7 +43,7 @@ source .venv/bin/activate
 ### 2. Install project dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ### 3. Create your environment file
@@ -62,14 +62,16 @@ Create your own PostgreSQL database locally and update the `DATABASE_URL` inside
 
 ### 5. Apply database migrations
 
-Create or update the application schema using the committed Alembic migrations:
+When running Flask directly on your computer, create or update the application
+schema using the committed Alembic migrations:
 
 ```bash
 flask db upgrade
 ```
 
 This command preserves existing data and applies only migrations that have not
-already run.
+already run. With Docker Compose, a one-off migration service performs this
+step automatically before the web service starts.
 
 ### 6. Seed roles, permissions, and the first administrator
 
@@ -77,6 +79,12 @@ Run the interactive bootstrap command:
 
 ```bash
 flask seed-db
+```
+
+When using Docker Compose, run it inside the web container:
+
+```bash
+docker compose exec web flask seed-db
 ```
 
 Enter the administrator's username, email, full name, and password when
