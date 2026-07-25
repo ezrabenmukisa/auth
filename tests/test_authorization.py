@@ -2,31 +2,28 @@ import pytest
 from flask_jwt_extended import create_access_token
 from werkzeug.security import generate_password_hash
 
-from app.modules.authentication.services import issue_token_pair
 from app.cli.seed import seed_development_data
 from app.extensions import db
-from app.models.users import User
-from app.models.roles import Role
 from app.models.permissions import Permission
-
-from app.modules.authorization.services import (
-    AuthorizationError,
-    AuthorizationPersistenceError,
-    create_role,
-    create_permission,
-    delete_role,
-    assign_permission_to_role,
-    remove_permission_from_role,
-    set_user_role,
-    has_permission,
-)
-
+from app.models.roles import Role
+from app.models.users import User
+from app.modules.authentication.services import issue_token_pair
 from app.modules.authorization.schemas import (
     ValidationError,
     validate_role_data,
     validate_user_role_data,
 )
-
+from app.modules.authorization.services import (
+    AuthorizationError,
+    AuthorizationPersistenceError,
+    assign_permission_to_role,
+    create_permission,
+    create_role,
+    delete_role,
+    has_permission,
+    remove_permission_from_role,
+    set_user_role,
+)
 from app.modules.users.services import UserNotFoundError
 
 # -------------------------------------------------

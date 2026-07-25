@@ -4,8 +4,8 @@ import pytest
 from flask_jwt_extended import create_access_token
 
 from app.extensions import db
-from app.models.users import User
 from app.models.roles import Role
+from app.models.users import User
 from app.modules.users.schemas import ValidationError, validate_user_creation_data
 from app.modules.users.services import DuplicateUserError, create_user
 

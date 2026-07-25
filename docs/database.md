@@ -30,12 +30,33 @@ non-null User role relationship.
 
 ## Applying migrations
 
+When running Flask directly:
+
 ```bash
 flask db upgrade
 ```
 
 Alembic reads `alembic_version` and applies only missing revisions.
 Running the command again does not drop tables or recreate existing data.
+
+With Docker Compose, the `migrate` service runs this command automatically:
+
+```text
+db healthy
+    → migrate runs flask db upgrade
+    → migrate exits successfully
+    → web starts Gunicorn
+```
+
+Run the normal Compose command:
+
+```bash
+docker compose up -d --build
+```
+
+The Dockerfile remains responsible only for starting Gunicorn. Keeping
+migrations in a one-off service prevents every web replica from attempting the
+same migration.
 
 ## Creating a migration
 

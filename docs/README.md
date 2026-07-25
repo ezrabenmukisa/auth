@@ -13,7 +13,7 @@ implementation.
 | [Authentication](authentication.md) | Registration, login, JWT refresh, logout, and revocation |
 | [Authorization](authorization.md) | Roles, permissions, seeded mappings, and dashboards |
 | [Database](database.md) | Models, migration chain, and safe migration workflows |
-| [Testing](testing.md) | Fixtures, test organization, and quality commands |
+| [Testing](testing.md) | Fixtures, test organization, quality commands, and CI |
 | [Contributing](CONTRIBUTE.md) | Team workflow and implementation rules |
 | [Project proposal](PROPOSAL.md) | Original academic scope and planned deliverables |
 
@@ -31,6 +31,6 @@ The implementation currently includes:
 - Liveness endpoint, migrations, and automated tests
 
 The proposal also describes later work such as password recovery, password
-changes, audit logging, readiness checks, OpenAPI documentation, Docker,
-Docker Compose, and GitHub Actions. Those items must not be treated as
-implemented until the corresponding code is merged.
+changes, audit logging, readiness checks, OpenAPI documentation, image
+publishing, and deployment. Those items must not be treated as implemented
+until the corresponding code is merged.

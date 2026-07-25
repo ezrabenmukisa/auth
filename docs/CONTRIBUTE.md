@@ -49,6 +49,7 @@ flask db upgrade
 ## Required checks
 
 ```bash
+python -m pip install -r requirements-dev.txt
 pytest -v
 ruff check .
 black --check .

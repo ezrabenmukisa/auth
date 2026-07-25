@@ -13,7 +13,7 @@ From the repository root:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
@@ -36,29 +36,38 @@ DATABASE_URL=postgresql+psycopg://postgres:password@localhost:5432/auth
 
 Never commit `.env`.
 
-Apply migrations:
+Apply migrations when running directly on your Mac:
 
 ```bash
 flask db upgrade
 ```
 
+When using Docker Compose, the one-off `migrate` service automatically applies
+pending migrations after PostgreSQL becomes healthy and before the web service
+starts:
+
+```bash
+docker compose up -d --build
+```
+
 Seed RBAC data and create the first administrator:
 
 ```bash
-flask seed-db
+docker compose exec web flask seed-db
 ```
 
 The command interactively asks for the Admin username, email, full name, and a
 hidden password with confirmation. Run it before public registration because
 new registrations require the seeded Employee role.
 
-Start Flask:
+To run Flask directly on your Mac:
 
 ```bash
 flask run
 ```
 
-Open `http://localhost:5000`.
+The direct Flask server opens at `http://localhost:5000`. The Compose stack uses
+`http://localhost:5001` by default.
 
 ## Useful pages
 
@@ -80,13 +89,20 @@ curl http://localhost:5000/health/live
 
 ## Normal updates
 
-After pulling new migration revisions:
+After pulling new migration revisions for direct local development:
 
 ```bash
 flask db upgrade
 ```
 
-This applies only pending migrations and preserves existing data.
+For Docker development, rebuild and start Compose. The migration service applies
+only pending revisions before the web service starts:
+
+```bash
+docker compose up -d --build
+```
+
+Both workflows preserve existing data.
 
 ## Destructive local reset
 

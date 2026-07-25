@@ -2,6 +2,6 @@ Flask
 Flask-JWT-Extended
 Flask-Migrate
 Flask-SQLAlchemy
+gunicorn
 psycopg[binary]
 python-dotenv
-pytest
