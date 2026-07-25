@@ -20,7 +20,7 @@ def create_app(config_class=Config):
 
     from app.authentication import authentication_bp
     from app.authorization import authorization_bp
-    from auth.app.ui import admin_ui_bp
+    from auth.app.ui import ui_bp
     from app.authentication.services import is_session_revoked
     from app.cli.seed import seed_db
     from app.health import health_bp
@@ -28,7 +28,7 @@ def create_app(config_class=Config):
 
     app.register_blueprint(authentication_bp)
     app.register_blueprint(authorization_bp)
-    app.register_blueprint(admin_ui_bp)
+    app.register_blueprint(ui_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(users_bp)
     app.cli.add_command(seed_db)
