@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Dashboard</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 30px auto; padding: 0 16px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+  section { margin-bottom: 28px; }
+  input, button { padding: 6px 8px; margin: 4px 4px 4px 0; font-size: 0.9rem; }
+  button { cursor: pointer; background: #1a1a1a; color: white; border: none; border-radius: 4px; padding: 6px 12px; }
+  button:hover { background: #333; }
+  button.secondary { background: #666; }
+  button.danger { background: #a33; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  #token { width: 420px; }
+  .msg { font-size: 0.85rem; color: #b00; margin-top: 4px; min-height: 1em; }
+  .ok { color: #096; }
+  .panel { background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 12px; margin-top: 8px; }
+  .pill { display: inline-block; background: #eee; border-radius: 10px; padding: 2px 8px; margin: 2px; font-size: 0.8rem; }
+  .pill button { background: none; color: #a33; border: none; padding: 0 0 0 6px; font-size: 0.9rem; }
+  .edit-row input { width: 140px; }
+  code { background: #eee; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Auth Service — Admin Dashboard</h1>
+
+<section>
+  <h2>Connection</h2>
+  <div class="row">
+    <label>API base: <input id="apiBase" value="http://localhost:5000/api/v1/authorization" size="42"></label>
+  </div>
+  <div class="row">
+    <label>Access token: <input id="token" placeholder="paste JWT access token here"></label>
+  </div>
+  <p style="font-size:0.8rem;color:#666">
+    Log in as the seeded admin, paste the access token here. Every action below
+    calls one of the <code>/api/v1/authorization/...</code> endpoints and needs
+    the matching permission on your role (Admin has all of them).
+  </p>
+</section>
+
+<section>
+  <h2>Roles</h2>
+  <div class="row">
+    <input id="roleName" placeholder="new role name">
+    <input id="roleDesc" placeholder="description (optional)">
+    <button onclick="createRole()">Create role</button>
+    <button class="secondary" onclick="loadRoles()">Refresh</button>
+  </div>
+  <table id="rolesTable">
+    <thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Actions</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="rolesMsg" class="msg"></div>
+
+  <div id="rolePermissionsPanel" class="panel" style="display:none;">
+    <strong>Permissions for role <span id="rpRoleLabel"></span></strong>
+    <div id="rpList"></div>
+    <div class="row">
+      <input id="rpPermissionId" placeholder="permission id to assign" size="10">
+      <button onclick="assignPermissionToOpenRole()">Assign</button>
+      <button class="secondary" onclick="closeRolePermissionsPanel()">Close</button>
+    </div>
+    <div id="rpMsg" class="msg"></div>
+  </div>
+</section>
+
+<section>
+  <h2>Permissions</h2>
+  <div class="row">
+    <input id="permName" placeholder="new permission name (e.g. roles.read)">
+    <input id="permDesc" placeholder="description (optional)">
+    <button onclick="createPermission()">Create permission</button>
+    <button class="secondary" onclick="loadPermissions()">Refresh</button>
+  </div>
+  <table id="permissionsTable">
+    <thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Actions</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="permissionsMsg" class="msg"></div>
+</section>
+
+<section>
+  <h2>User Role Assignment</h2>
+  <p style="font-size:0.8rem;color:#666">Looks up or changes which role a single user has. There's no user list/search here — that lives in the users module.</p>
+  <div class="row">
+    <input id="lookupUserId" placeholder="user id" size="8">
+    <button onclick="lookupUserRole()">Get current role</button>
+  </div>
+  <div class="row">
+    <input id="assignUserId" placeholder="user id" size="8">
+    <input id="assignRoleId" placeholder="role id" size="8">
+    <button onclick="assignRole()">Set user's role</button>
+  </div>
+  <div id="assignMsg" class="msg"></div>
+</section>
+
+<script>
+function base() { return document.getElementById('apiBase').value.replace(/\/$/, ''); }
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + document.getElementById('token').value.trim()
+  };
+}
+function extractError(body) {
+  if (!body) return 'Request failed';
+  if (body.error) return body.error;
+  if (body.errors) return Object.values(body.errors).join(', ');
+  return 'Request failed';
+}
+async function call(path, options = {}) {
+  const res = await fetch(base() + path, { ...options, headers: authHeaders() });
+  let body = null;
+  try { body = await res.json(); } catch (e) {}
+  if (!res.ok) throw new Error(extractError(body));
+  return body;
+}
+
+let openRoleId = null;
+
+// ---- Roles ----
+async function loadRoles() {
+  const msg = document.getElementById('rolesMsg');
+  msg.textContent = '';
+  try {
+    const roles = await call('/roles');
+    const tbody = document.querySelector('#rolesTable tbody');
+    tbody.innerHTML = '';
+    roles.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.dataset.roleId = r.id;
+      tr.innerHTML = `
+        <td>${r.id}</td>
+        <td class="name-cell">${r.name}</td>
+        <td class="desc-cell">${r.description || ''}</td>
+        <td>
+          <button onclick="startEditRole(${r.id}, ${JSON.stringify(r.name)}, ${JSON.stringify(r.description || '')})">Edit</button>
+          <button onclick="openRolePermissions(${r.id}, ${JSON.stringify(r.name)})">Permissions</button>
+          <button class="danger" onclick="removeRole(${r.id})">Delete</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function createRole() {
+  const msg = document.getElementById('rolesMsg');
+  try {
+    await call('/roles', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('roleName').value,
+        description: document.getElementById('roleDesc').value || null
+      })
+    });
+    document.getElementById('roleName').value = '';
+    document.getElementById('roleDesc').value = '';
+    loadRoles();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+function startEditRole(roleId, currentName, currentDesc) {
+  const tr = document.querySelector(`#rolesTable tr[data-role-id="${roleId}"]`);
+  tr.querySelector('.name-cell').innerHTML = `<input class="edit-row" id="editName-${roleId}" value="${currentName}">`;
+  tr.querySelector('.desc-cell').innerHTML = `<input class="edit-row" id="editDesc-${roleId}" value="${currentDesc}">`;
+  const actionsCell = tr.children[3];
+  actionsCell.innerHTML = `
+    <button onclick="saveRole(${roleId})">Save</button>
+    <button class="secondary" onclick="loadRoles()">Cancel</button>`;
+}
+
+async function saveRole(roleId) {
+  const msg = document.getElementById('rolesMsg');
+  const name = document.getElementById(`editName-${roleId}`).value;
+  const description = document.getElementById(`editDesc-${roleId}`).value || null;
+  try {
+    await call(`/roles/${roleId}`, { method: 'PUT', body: JSON.stringify({ name, description }) });
+    loadRoles();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function removeRole(roleId) {
+  const msg = document.getElementById('rolesMsg');
+  try {
+    await call(`/roles/${roleId}`, { method: 'DELETE' });
+    loadRoles();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+// ---- Role permissions panel ----
+async function openRolePermissions(roleId, roleName) {
+  openRoleId = roleId;
+  document.getElementById('rolePermissionsPanel').style.display = 'block';
+  document.getElementById('rpRoleLabel').textContent = `#${roleId} (${roleName})`;
+  await refreshRolePermissions();
+}
+
+function closeRolePermissionsPanel() {
+  openRoleId = null;
+  document.getElementById('rolePermissionsPanel').style.display = 'none';
+}
+
+async function refreshRolePermissions() {
+  const msg = document.getElementById('rpMsg');
+  msg.textContent = '';
+  try {
+    const permissions = await call(`/roles/${openRoleId}/permissions`);
+    const list = document.getElementById('rpList');
+    list.innerHTML = '';
+    if (permissions.length === 0) {
+      list.innerHTML = '<em>No permissions assigned.</em>';
+    }
+    permissions.forEach(p => {
+      const span = document.createElement('span');
+      span.className = 'pill';
+      span.innerHTML = `${p.name} <button onclick="removePermissionFromOpenRole(${p.id})" title="remove">&times;</button>`;
+      list.appendChild(span);
+    });
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function assignPermissionToOpenRole() {
+  const msg = document.getElementById('rpMsg');
+  const permId = document.getElementById('rpPermissionId').value;
+  try {
+    await call(`/roles/${openRoleId}/permissions/${permId}`, { method: 'POST' });
+    document.getElementById('rpPermissionId').value = '';
+    refreshRolePermissions();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function removePermissionFromOpenRole(permId) {
+  const msg = document.getElementById('rpMsg');
+  try {
+    await call(`/roles/${openRoleId}/permissions/${permId}`, { method: 'DELETE' });
+    refreshRolePermissions();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+// ---- Permissions ----
+async function loadPermissions() {
+  const msg = document.getElementById('permissionsMsg');
+  msg.textContent = '';
+  try {
+    const perms = await call('/permissions');
+    const tbody = document.querySelector('#permissionsTable tbody');
+    tbody.innerHTML = '';
+    perms.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.dataset.permId = p.id;
+      tr.innerHTML = `
+        <td>${p.id}</td>
+        <td class="name-cell">${p.name}</td>
+        <td class="desc-cell">${p.description || ''}</td>
+        <td>
+          <button onclick="startEditPermission(${p.id}, ${JSON.stringify(p.name)}, ${JSON.stringify(p.description || '')})">Edit</button>
+          <button class="danger" onclick="removePermission(${p.id})">Delete</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function createPermission() {
+  const msg = document.getElementById('permissionsMsg');
+  try {
+    await call('/permissions', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('permName').value,
+        description: document.getElementById('permDesc').value || null
+      })
+    });
+    document.getElementById('permName').value = '';
+    document.getElementById('permDesc').value = '';
+    loadPermissions();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+function startEditPermission(permId, currentName, currentDesc) {
+  const tr = document.querySelector(`#permissionsTable tr[data-perm-id="${permId}"]`);
+  tr.querySelector('.name-cell').innerHTML = `<input class="edit-row" id="editPermName-${permId}" value="${currentName}">`;
+  tr.querySelector('.desc-cell').innerHTML = `<input class="edit-row" id="editPermDesc-${permId}" value="${currentDesc}">`;
+  const actionsCell = tr.children[3];
+  actionsCell.innerHTML = `
+    <button onclick="savePermission(${permId})">Save</button>
+    <button class="secondary" onclick="loadPermissions()">Cancel</button>`;
+}
+
+async function savePermission(permId) {
+  const msg = document.getElementById('permissionsMsg');
+  const name = document.getElementById(`editPermName-${permId}`).value;
+  const description = document.getElementById(`editPermDesc-${permId}`).value || null;
+  try {
+    await call(`/permissions/${permId}`, { method: 'PUT', body: JSON.stringify({ name, description }) });
+    loadPermissions();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function removePermission(permId) {
+  const msg = document.getElementById('permissionsMsg');
+  try {
+    await call(`/permissions/${permId}`, { method: 'DELETE' });
+    loadPermissions();
+  } catch (e) { msg.textContent = e.message; }
+}
+
+// ---- User role assignment ----
+async function lookupUserRole() {
+  const msg = document.getElementById('assignMsg');
+  const userId = document.getElementById('lookupUserId').value;
+  try {
+    const role = await call(`/users/${userId}/role`);
+    msg.textContent = `User ${userId} currently has role: ${role.name} (id ${role.id})`;
+    msg.className = 'msg ok';
+  } catch (e) { msg.textContent = e.message; msg.className = 'msg'; }
+}
+
+async function assignRole() {
+  const msg = document.getElementById('assignMsg');
+  const userId = document.getElementById('assignUserId').value;
+  const roleId = document.getElementById('assignRoleId').value;
+  try {
+    const result = await call(`/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role_id: Number(roleId) })
+    });
+    msg.textContent = result.message + ` (now: ${result.role.name})`;
+    msg.className = 'msg ok';
+  } catch (e) { msg.textContent = e.message; msg.className = 'msg'; }
+}
+
+loadRoles();
+loadPermissions();
+</script>
+</body>
+</html>
