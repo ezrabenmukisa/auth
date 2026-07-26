@@ -32,9 +32,10 @@ The implementation currently includes:
 - User-facing login, registration, profile, and role-specific dashboard pages
 - Liveness endpoint, migrations, and automated tests
 - Docker, PostgreSQL Compose, automatic migrations, and persistent storage
-- GitHub Actions quality, test, migration, and image-build checks
+- GitHub Actions quality, test, migration, image publishing, and Railway
+  production-deployment checks
 
 The proposal also describes later work such as password recovery, password
-changes, audit logging, readiness checks, OpenAPI documentation, and deployment.
-Those items must not be treated as implemented until the corresponding code is
+changes, audit logging, readiness checks, and OpenAPI documentation. Those
+items must not be treated as implemented until the corresponding code is
 merged.
