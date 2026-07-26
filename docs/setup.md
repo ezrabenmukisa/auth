@@ -1,117 +1,216 @@
 # Application Setup
 
-## Requirements
+Two development workflows are supported:
 
-- Python with `venv`
-- PostgreSQL
+1. Docker Compose, recommended for reproducibility.
+2. Native Python and PostgreSQL, retained for contributors who prefer local
+   services.
+
+Use one workflow at a time. They can use different PostgreSQL instances.
+
+## Docker Compose setup
+
+### Requirements
+
 - Git
+- Docker Desktop, or Docker Engine with Compose
 
-## First-time setup
-
-From the repository root:
+Verify Docker:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
+docker --version
+docker compose version
+docker info
+```
+
+### Clone the repository
+
+```bash
+git clone <repository-url> auth
+cd auth
+git switch dev
+```
+
+### Configure the environment
+
+```bash
 cp .env.example .env
 ```
 
-On Windows, activate the environment with:
-
-```text
-.venv\Scripts\activate
-```
-
-Create a local PostgreSQL database and configure `.env`:
+Set strong local values:
 
 ```dotenv
-FLASK_DEBUG=true
 SECRET_KEY=replace-with-a-strong-random-secret
 JWT_SECRET_KEY=replace-with-a-different-strong-random-secret
 JWT_ACCESS_TOKEN_MINUTES=15
 JWT_REFRESH_TOKEN_DAYS=30
-DATABASE_URL=postgresql+psycopg://postgres:password@localhost:5432/auth
+
+APP_PORT=5001
+POSTGRES_DB=auth
+POSTGRES_USER=auth
+POSTGRES_PASSWORD=replace-with-a-local-database-password
 ```
+
+`DATABASE_URL` using `localhost` remains in `.env` for native development.
+Compose overrides it inside the web and migration containers with a URL whose
+host is `db`, the PostgreSQL service name.
 
 Never commit `.env`.
 
-Apply migrations when running directly on your Mac:
-
-```bash
-flask db upgrade
-```
-
-When using Docker Compose, the one-off `migrate` service automatically applies
-pending migrations after PostgreSQL becomes healthy and before the web service
-starts:
+### Build and start
 
 ```bash
 docker compose up -d --build
 ```
 
-Seed RBAC data and create the first administrator:
+Startup order:
+
+```text
+PostgreSQL starts and becomes healthy
+    → migrate runs flask db upgrade
+    → migrate exits with code 0
+    → web starts Gunicorn
+```
+
+Inspect all services:
+
+```bash
+docker compose ps --all
+```
+
+Expected:
+
+```text
+db       Up (healthy)
+migrate  Exited (0)
+web      Up
+```
+
+`Exited (0)` means the one-off migration completed successfully.
+
+Inspect logs:
+
+```bash
+docker compose logs
+docker compose logs web
+docker compose logs db
+docker compose logs migrate
+```
+
+### Seed RBAC and the first Admin
 
 ```bash
 docker compose exec web flask seed-db
 ```
 
-The command interactively asks for the Admin username, email, full name, and a
-hidden password with confirmation. Run it before public registration because
-new registrations require the seeded Employee role.
+The command securely prompts for the Admin details. It creates or synchronizes:
 
-To run Flask directly on your Mac:
+- Employee, Accountant, Manager, and Admin roles
+- Seeded permissions and exact role-permission mappings
+- The bootstrap Admin
 
-```bash
-flask run
-```
+Run this before accepting registrations because normal registration requires
+the Employee role.
 
-The direct Flask server opens at `http://localhost:5000`. The Compose stack uses
-`http://localhost:5001` by default.
+### Use the application
 
-## Useful pages
+Open `http://localhost:5001`.
 
 | Page | Purpose |
 |---|---|
-| `/login` | Sign in with a username or email |
-| `/register` | Create an account with the Employee role |
-| `/dashboard` | Resolve and open the dashboard for the current role |
+| `/login` | Sign in with username or email |
+| `/register` | Create an Employee account |
+| `/dashboard` | Resolve the dashboard for the current role |
 | `/admin` | Admin dashboard |
 | `/manager` | Manager dashboard |
 | `/accountant` | Accountant dashboard |
 | `/employee` | Employee dashboard |
 
-## Health check
+Verify liveness:
 
 ```bash
-curl http://localhost:5000/health/live
+curl http://localhost:5001/health/live
 ```
 
-## Normal updates
+### Stop or reset Compose
 
-After pulling new migration revisions for direct local development:
+Stop containers and preserve PostgreSQL data:
+
+```bash
+docker compose down
+```
+
+Restart later:
+
+```bash
+docker compose up -d
+```
+
+Delete containers, network, and database volume:
+
+```bash
+docker compose down --volumes
+```
+
+The final command permanently deletes the Compose database.
+
+## Native development alternative
+
+### Requirements
+
+- Git
+- Python with `venv`
+- PostgreSQL installed and running locally
+
+### Install
+
+```bash
+git clone <repository-url> auth
+cd auth
+git switch dev
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+cp .env.example .env
+```
+
+On Windows:
+
+```text
+.venv\Scripts\activate
+```
+
+Create a local PostgreSQL database and configure:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://username:password@localhost:5432/auth
+```
+
+Apply migrations and seed:
 
 ```bash
 flask db upgrade
+flask seed-db
 ```
 
-For Docker development, rebuild and start Compose. The migration service applies
-only pending revisions before the web service starts:
+Run Flask:
 
 ```bash
-docker compose up -d --build
+flask run
 ```
 
-Both workflows preserve existing data.
+Open `http://localhost:5000`.
 
-## Destructive local reset
+### Native database reset
 
-> This deletes every application record. Never run it against a production or
-> shared database.
+> Never run this against a production or shared database.
 
 ```bash
 flask db downgrade base && flask db upgrade && flask seed-db
 ```
 
-The command removes the migrated schema, rebuilds it, and prompts for the
-bootstrap administrator again.
+Normal updates require only:
+
+```bash
+flask db upgrade
+```
