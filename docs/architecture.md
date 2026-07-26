@@ -1,5 +1,33 @@
 # Architecture
 
+## System overview
+
+```mermaid
+flowchart TB
+    Browser["Browser / API client"]
+    RailwayURL["Railway HTTPS domain"]
+    Web["Flask + Gunicorn container"]
+    Migrate["Railway pre-deploy migration<br/>flask db upgrade"]
+    Database[("Railway PostgreSQL")]
+    GHCR["GitHub Container Registry<br/>versioned application image"]
+    Release["GitHub Release"]
+    Actions["GitHub Actions"]
+
+    Browser -->|HTTPS| RailwayURL
+    RailwayURL --> Web
+    Web -->|DATABASE_URL over private network| Database
+    Migrate --> Database
+    Release --> Actions
+    Actions -->|Build and publish| GHCR
+    GHCR -->|Pull latest release image| Web
+    Actions -->|Trigger and verify deployment| RailwayURL
+```
+
+The application and database are separate deployable services. The published
+image contains the Flask code, runtime dependencies, Gunicorn, CLI commands,
+and Alembic migrations. It does not contain PostgreSQL, application data,
+administrator credentials, or environment secrets.
+
 ## Application factory
 
 `app/create_app()` creates each Flask application instance. It:
@@ -17,13 +45,15 @@
 
 Feature code follows:
 
-```text
-HTTP request
-    → Route
-    → Schema
-    → Service
-    → Model
-    → Database
+```mermaid
+flowchart LR
+    Request["HTTP request"] --> Route
+    Route --> Schema
+    Schema --> Service
+    Service --> Model
+    Model --> Database[(Database)]
+    Database --> Model --> Service --> Route
+    Route --> Response["JSON or HTML response"]
 ```
 
 - `routes.py` handles HTTP input and response status codes.
@@ -56,19 +86,45 @@ request. Logout revokes the shared session and clears both browser tokens.
 The dashboards resolve the current role through `/api/v1/auth/me` and redirect
 to the matching role page.
 
-## Compose startup order
+## Local Compose startup
 
 Docker Compose separates schema migration from HTTP serving:
 
-```text
-PostgreSQL health check
-    → one-off migration service
-    → Gunicorn web service
+```mermaid
+flowchart LR
+    DB["PostgreSQL container"] -->|Healthy| Migration["One-off migration container"]
+    Migration -->|Exit code 0| Web["Gunicorn web container"]
 ```
 
-The migration service and web service use the same application image and
-environment. The web service starts only when `flask db upgrade` exits
-successfully. Interactive administrator seeding remains a separate command.
+The migration service and web service use the same locally built application
+image and environment. The web service starts only when `flask db upgrade`
+exits successfully. Interactive administrator seeding remains a separate
+command.
+
+## Runtime comparison
+
+```mermaid
+flowchart TB
+    subgraph Local["Local Docker Compose"]
+        LocalWeb["Locally built web image"]
+        LocalMigration["Migration container"]
+        LocalPostgres[("PostgreSQL 17 container<br/>named volume")]
+        LocalMigration --> LocalPostgres
+        LocalWeb --> LocalPostgres
+    end
+
+    subgraph Production["Railway production"]
+        HostedWeb["Published GHCR image"]
+        HostedMigration["Pre-deploy migration"]
+        HostedPostgres[("Railway PostgreSQL<br/>persistent volume")]
+        HostedMigration --> HostedPostgres
+        HostedWeb --> HostedPostgres
+    end
+```
+
+Compose orchestrates the complete local environment. Railway performs the
+production orchestration through separately configured application and
+PostgreSQL services; it does not run `compose.yaml`.
 
 ## Configuration
 
