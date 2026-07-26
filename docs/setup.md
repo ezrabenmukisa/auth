@@ -1,12 +1,33 @@
 # Application Setup
 
-Two development workflows are supported:
+## Choose an operating mode
 
-1. Docker Compose, recommended for reproducibility.
-2. Native Python and PostgreSQL, retained for contributors who prefer local
-   services.
+The project supports two local workflows and one hosted production workflow:
 
-Use one workflow at a time. They can use different PostgreSQL instances.
+| Mode | Command or platform | PostgreSQL location |
+|---|---|---|
+| Local Compose | `docker compose up -d --build` | Local PostgreSQL container |
+| Local native | `flask run` | PostgreSQL installed on the developer machine |
+| Production | Published GHCR image running on Railway | Separate Railway PostgreSQL service |
+
+Use one local workflow at a time because the native and Compose environments
+use different database instances. Production is configured separately on
+Railway and never reads the developer's `.env` or local database.
+
+```mermaid
+flowchart LR
+    Repository["Git repository"]
+    Native["Native local Flask"]
+    Compose["Docker Compose"]
+    Railway["Railway production"]
+    LocalDB["Local PostgreSQL"]
+    ContainerDB["PostgreSQL container"]
+    RailwayDB["Railway PostgreSQL"]
+
+    Repository --> Native --> LocalDB
+    Repository --> Compose --> ContainerDB
+    Repository -->|"GitHub Release → GHCR image"| Railway --> RailwayDB
+```
 
 ## Docker Compose setup
 
@@ -214,3 +235,10 @@ Normal updates require only:
 ```bash
 flask db upgrade
 ```
+
+## Production setup
+
+Production does not use the local `.env`, development server, or local Compose
+database. GitHub Actions publishes the Dockerfile-built image to GHCR, Railway
+pulls that image, and the application connects to a separate Railway
+PostgreSQL service through Railway variables.
