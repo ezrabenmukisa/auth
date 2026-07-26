@@ -69,3 +69,14 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy published image
+    if: ${{ !github.event.release.prerelease }}
+    needs: publish
+    permissions:
+      contents: read
+      deployments: write
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit

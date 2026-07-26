@@ -2,7 +2,8 @@
 
 A modular Flask service for user accounts, JWT authentication, session
 revocation, roles, permissions, role-specific dashboards, containerized
-development, automated CI, and versioned container-image delivery.
+development, automated CI, versioned container-image delivery, and Railway
+deployment.
 
 ## Documentation
 
