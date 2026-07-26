@@ -67,8 +67,8 @@ syntax rather than DOM interaction.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on pushes and pull requests targeting `dev`,
-`develop`, or `main`. It can also be started manually from the Actions tab.
+`.github/workflows/ci.yml` runs on pushes and pull requests targeting `dev` or
+`main`. It can also be started manually from the Actions tab.
 
 The workflow contains four independent jobs:
 
@@ -81,3 +81,6 @@ The workflow contains four independent jobs:
 
 CI uses disposable GitHub-hosted runners and test-only credentials. It does not
 read the local `.env`, publish an image, or deploy the application.
+
+See [CI/CD](ci-cd.md) for workflow concepts, local equivalents, and the planned
+boundary for continuous delivery.
