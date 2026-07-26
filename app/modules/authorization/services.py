@@ -6,14 +6,14 @@ from flask import jsonify
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.modules.authentication.services import (
-    AuthenticationError,
-    get_active_user,
-)
 from app.extensions import db
 from app.models.permissions import Permission
 from app.models.roles import Role
 from app.models.users import User
+from app.modules.authentication.services import (
+    AuthenticationError,
+    get_active_user,
+)
 from app.modules.users.services import UserNotFoundError
 
 

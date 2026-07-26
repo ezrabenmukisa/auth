@@ -2,13 +2,13 @@
 
 ## Development workflow
 
-1. Pull the latest `develop` branch.
+1. Pull the latest `dev` branch.
 2. Select or create a GitHub issue.
-3. Create a focused feature branch from `develop`.
+3. Create a focused feature branch from `dev`.
 4. Implement the feature through the existing architecture.
 5. Add or update tests.
 6. Run the complete local quality checks.
-7. Push the branch and open a pull request into `develop`.
+7. Push the branch and open a pull request into `dev`.
 8. Obtain a review before merging.
 
 ## Architecture rules
@@ -49,6 +49,7 @@ flask db upgrade
 ## Required checks
 
 ```bash
+python -m pip install -r requirements-dev.txt
 pytest -v
 ruff check .
 black --check .

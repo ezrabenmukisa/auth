@@ -1,10 +1,10 @@
 """Tests for RBAC and bootstrap-administrator seeding."""
 
-from app.modules.authentication.services import verify_password
 from app.cli.seed import AUTHORIZATION_PERMISSIONS, ROLE_PERMISSIONS
 from app.models.permissions import Permission
 from app.models.roles import Role
 from app.models.users import User
+from app.modules.authentication.services import verify_password
 
 ADMIN_INPUT = (
     "bootstrap-admin\n"

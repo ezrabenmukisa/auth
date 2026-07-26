@@ -2,6 +2,8 @@
 
 from flask import Blueprint
 
-authorization_bp = Blueprint("authorization", __name__, url_prefix="/api/v1/authorization")
+authorization_bp = Blueprint(
+    "authorization", __name__, url_prefix="/api/v1/authorization"
+)
 
 from app.modules.authorization import routes  # noqa: E402,F401

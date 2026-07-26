@@ -5,10 +5,15 @@
 Activate the virtual environment, then run:
 
 ```bash
+python -m pip install -r requirements-dev.txt
 pytest -v
 ruff check .
 black --check .
 ```
+
+`requirements.txt` contains only application runtime dependencies and is used
+by the Docker image. `requirements-dev.txt` includes the runtime file and adds
+Black, Pytest, and Ruff for contributors and CI.
 
 ## Shared fixtures
 
@@ -59,3 +64,23 @@ node --check app/static/js/dashboard.js
 
 Browser behavior still requires manual testing because `node --check` verifies
 syntax rather than DOM interaction.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on pushes and pull requests targeting `dev` or
+`main`. It can also be started manually from the Actions tab.
+
+The workflow contains four independent jobs:
+
+| Job | Verification |
+|---|---|
+| Format and lint | `black --check .` and `ruff check .` |
+| Test application | Complete Pytest suite with `TestConfig` |
+| Verify PostgreSQL migrations | Upgrade a fresh PostgreSQL 17 service through Alembic |
+| Build Docker image | Build the runtime image without publishing it |
+
+CI uses disposable GitHub-hosted runners and test-only credentials. It does not
+read the local `.env`, publish an image, or deploy the application.
+
+See [CI/CD](ci-cd.md) for workflow concepts, local equivalents, and the planned
+boundary for continuous delivery.

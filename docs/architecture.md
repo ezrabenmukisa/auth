@@ -56,6 +56,20 @@ request. Logout revokes the shared session and clears both browser tokens.
 The dashboards resolve the current role through `/api/v1/auth/me` and redirect
 to the matching role page.
 
+## Compose startup order
+
+Docker Compose separates schema migration from HTTP serving:
+
+```text
+PostgreSQL health check
+    → one-off migration service
+    → Gunicorn web service
+```
+
+The migration service and web service use the same application image and
+environment. The web service starts only when `flask db upgrade` exits
+successfully. Interactive administrator seeding remains a separate command.
+
 ## Configuration
 
 `app/config.py` reads runtime settings from environment variables.

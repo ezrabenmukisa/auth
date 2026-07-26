@@ -1,7 +1,8 @@
 # Authentication and Role-Based Authorization Service
 
 A modular Flask service for user accounts, JWT authentication, session
-revocation, roles, permissions, and role-specific dashboards.
+revocation, roles, permissions, role-specific dashboards, containerized
+development, automated CI, and versioned container-image delivery.
 
 ## Documentation
 
@@ -12,99 +13,66 @@ revocation, roles, permissions, and role-specific dashboards.
 - [Authentication and token lifecycle](docs/authentication.md)
 - [Authorization and seeded access](docs/authorization.md)
 - [Database and migrations](docs/database.md)
+- [Docker and clean-checkout workflow](docs/docker.md)
+- [CI/CD](docs/ci-cd.md)
 - [Testing and quality checks](docs/testing.md)
 - [Contributing](docs/CONTRIBUTE.md)
 - [Academic project proposal](docs/PROPOSAL.md)
 
 ## Getting Started
 
-After cloning the repository, complete the following setup before you begin development.
+Docker Compose is the recommended reproducible setup. It runs Flask, Gunicorn,
+PostgreSQL, and migrations without requiring a local Python or PostgreSQL
+installation.
 
-### 1. Create a virtual environment
-
-```bash
-python -m venv .venv
-```
-
-Activate it.
-
-**Windows**
+### 1. Clone and configure
 
 ```bash
-.venv\Scripts\activate
-```
-
-**macOS / Linux**
-
-```bash
-source .venv/bin/activate
-```
-
-### 2. Install project dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Create your environment file
-
-Copy the example configuration.
-
-```bash
+git clone <repository-url> auth
+cd auth
+git switch dev
 cp .env.example .env
 ```
 
-Fill in your local PostgreSQL credentials and application secrets.
+Replace the placeholder secrets and Docker database password in `.env`. Never
+commit that file.
 
-### 4. Create the local PostgreSQL database
-
-Create your own PostgreSQL database locally and update the `DATABASE_URL` inside `.env`.
-
-### 5. Apply database migrations
-
-Create or update the application schema using the committed Alembic migrations:
+### 2. Build and start
 
 ```bash
-flask db upgrade
+docker compose up -d --build
 ```
 
-This command preserves existing data and applies only migrations that have not
-already run.
+Compose waits for PostgreSQL, runs pending migrations in a one-off container,
+then starts Gunicorn.
 
-### 6. Seed roles, permissions, and the first administrator
-
-Run the interactive bootstrap command:
+### 3. Confirm service state
 
 ```bash
-flask seed-db
+docker compose ps --all
 ```
 
-Enter the administrator's username, email, full name, and password when
-prompted. Password input is hidden and must be confirmed.
-
-The command creates or synchronizes the Employee, Accountant, Manager, and
-Admin roles, their permissions, and the bootstrap administrator. It is
-idempotent, so running it again does not create duplicate seed records.
-
-New accounts created through registration receive the Employee role. Therefore,
-run `flask seed-db` before accepting registrations.
-
-### 7. Run the application
-
-```bash
-python run.py
-```
-
-or
-
-```bash
-flask run
-```
-
-Open the application at:
+Expected state:
 
 ```text
-http://localhost:5000
+db       Up (healthy)
+migrate  Exited (0)
+web      Up
+```
+
+### 4. Seed the first administrator
+
+```bash
+docker compose exec web flask seed-db
+```
+
+Enter the Admin username, email, full name, and hidden password when prompted.
+The seed is idempotent and also creates the required RBAC mappings.
+
+### 5. Open the application
+
+```text
+http://localhost:5001
 ```
 
 Useful pages:
@@ -113,21 +81,43 @@ Useful pages:
 - `/register` — create an Employee account
 - `/dashboard` — redirect to the dashboard for the signed-in user's role
 
-### 8. Verify the health endpoint
+Verify liveness:
 
 ```bash
-curl http://localhost:5000/health/live
+curl http://localhost:5001/health/live
 ```
 
-### 9. Run quality checks
+### 6. Stop the stack
+
+Preserve the database:
 
 ```bash
+docker compose down
+```
+
+Delete the containers and local Docker database:
+
+```bash
+docker compose down --volumes
+```
+
+The second command is destructive.
+
+### Native alternative
+
+Running Flask and PostgreSQL directly on the host is still supported. See the
+[complete setup guide](docs/setup.md#native-development-alternative).
+
+### Quality checks
+
+```bash
+python -m pip install -r requirements-dev.txt
 pytest -v
 ruff check .
 black --check .
 ```
 
-## Resetting the local development database
+## Resetting a native development database
 
 > **Warning:** The following command deletes all application data, including
 > users, roles, permissions, and revoked-token sessions. Use it only for a local
@@ -148,23 +138,6 @@ For normal development updates after pulling new migrations, use only:
 flask db upgrade
 ```
 
-## Authentication token usage
-
-Login at `POST /api/v1/auth/login` with a username or email in the
-`identifier` field:
-
-```json
-{
-  "identifier": "newuser",
-  "password": "your-password"
-}
-```
-
-Send JWTs using `Authorization: Bearer <token>`. The refresh endpoint requires
-a refresh token; protected resources require an access token. Logging out with
-either token revokes the complete login session, including its paired access
-and refresh tokens.
-
 
 ---
 
@@ -172,12 +145,12 @@ and refresh tokens.
 
 Before starting work:
 
-- Pull the latest changes from `develop`.
+- Pull the latest changes from `dev`.
 - Pick or create a GitHub Issue.
-- Create a feature branch from `develop`.
+- Create a feature branch from `dev`.
 - Implement both the feature and its tests.
 - Run the test suite before pushing.
-- Open a Pull Request into `develop`.
+- Open a Pull Request into `dev`.
 - Wait for review before merging.
 
 > **Important**

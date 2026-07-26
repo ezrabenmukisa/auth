@@ -3,6 +3,10 @@
 import click
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.extensions import db
+from app.models.permissions import Permission
+from app.models.roles import Role
+from app.models.users import User
 from app.modules.authentication.schemas import (
     ValidationError as AuthenticationValidationError,
 )
@@ -12,10 +16,6 @@ from app.modules.authorization.services import (
     AuthorizationPersistenceError,
     set_user_role,
 )
-from app.extensions import db
-from app.models.permissions import Permission
-from app.models.roles import Role
-from app.models.users import User
 from app.modules.users.services import DuplicateUserError, UserPersistenceError
 
 

@@ -5,11 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from flask_jwt_extended import create_access_token, create_refresh_token, decode_token
 
-from app.modules.authentication.services import revoke_session, verify_password
 from app.extensions import db
 from app.models.revoked_tokens import RevokedToken
 from app.models.roles import Role
 from app.models.users import User
+from app.modules.authentication.services import revoke_session, verify_password
 
 VALID_REGISTRATION = {
     "username": "newuser",

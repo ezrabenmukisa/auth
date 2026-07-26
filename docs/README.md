@@ -13,7 +13,9 @@ implementation.
 | [Authentication](authentication.md) | Registration, login, JWT refresh, logout, and revocation |
 | [Authorization](authorization.md) | Roles, permissions, seeded mappings, and dashboards |
 | [Database](database.md) | Models, migration chain, and safe migration workflows |
-| [Testing](testing.md) | Fixtures, test organization, and quality commands |
+| [Docker](docker.md) | Images, Compose, commands, persistence, and clean-checkout verification |
+| [CI/CD](ci-cd.md) | Current GitHub Actions CI and the boundary before CD |
+| [Testing](testing.md) | Fixtures, test organization, quality commands, and CI |
 | [Contributing](CONTRIBUTE.md) | Team workflow and implementation rules |
 | [Project proposal](PROPOSAL.md) | Original academic scope and planned deliverables |
 
@@ -29,8 +31,10 @@ The implementation currently includes:
 - Interactive bootstrap-Admin seeding
 - User-facing login, registration, profile, and role-specific dashboard pages
 - Liveness endpoint, migrations, and automated tests
+- Docker, PostgreSQL Compose, automatic migrations, and persistent storage
+- GitHub Actions quality, test, migration, and image-build checks
 
 The proposal also describes later work such as password recovery, password
-changes, audit logging, readiness checks, OpenAPI documentation, Docker,
-Docker Compose, and GitHub Actions. Those items must not be treated as
-implemented until the corresponding code is merged.
+changes, audit logging, readiness checks, OpenAPI documentation, and deployment.
+Those items must not be treated as implemented until the corresponding code is
+merged.
