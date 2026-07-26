@@ -47,6 +47,7 @@ jobs:
             docker run --rm \
               -e RAILWAY_TOKEN \
               ghcr.io/railwayapp/cli:latest \
+              railway \
               deployment list \
               --service "$RAILWAY_SERVICE" \
               --limit 1 \
@@ -68,6 +69,7 @@ jobs:
           docker run --rm \
             -e RAILWAY_TOKEN \
             ghcr.io/railwayapp/cli:latest \
+            railway \
             redeploy \
             --service "$RAILWAY_SERVICE" \
             --yes
@@ -81,6 +83,7 @@ jobs:
               docker run --rm \
                 -e RAILWAY_TOKEN \
                 ghcr.io/railwayapp/cli:latest \
+                railway \
                 deployment list \
                 --service "$RAILWAY_SERVICE" \
                 --limit 1 \
