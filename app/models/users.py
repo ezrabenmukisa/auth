@@ -11,23 +11,54 @@ class User(db.Model):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+
     username: Mapped[str] = mapped_column(
-        db.String(80), unique=True, nullable=False, index=True
+        db.String(80),
+        unique=True,
+        nullable=False,
+        index=True
     )
+
     email: Mapped[str] = mapped_column(
-        db.String(255), unique=True, nullable=False, index=True
+        db.String(255),
+        unique=True,
+        nullable=False,
+        index=True
     )
-    password_hash: Mapped[str] = mapped_column(db.String(255), nullable=False)
-    full_name: Mapped[str | None] = mapped_column(db.String(150), nullable=True)
-    is_active: Mapped[bool] = mapped_column(db.Boolean, default=True, nullable=False)
+
+    password_hash: Mapped[str] = mapped_column(
+        db.String(255),
+        nullable=False
+    )
+
+    full_name: Mapped[str | None] = mapped_column(
+        db.String(150),
+        nullable=True
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        db.Boolean,
+        default=True,
+        nullable=False
+    )
+
+    is_suspended: Mapped[bool] = mapped_column(
+        db.Boolean,
+        default=False,
+        nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
-        db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
     )
+
     updated_at: Mapped[datetime] = mapped_column(
         db.DateTime,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
+        nullable=False
     )
 
     role_id: Mapped[int] = mapped_column(
@@ -35,7 +66,11 @@ class User(db.Model):
         db.ForeignKey("roles.id"),
         nullable=False,
     )
-    role = relationship("Role", back_populates="users")
+
+    role = relationship(
+        "Role",
+        back_populates="users"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username!r}>"

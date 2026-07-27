@@ -1,14 +1,24 @@
 """Authentication HTTP routes."""
 
 from flask import jsonify, request
-from flask_jwt_extended import get_jwt, get_jwt_identity, jwt_required
 
+from app.models.users import User
+
+from flask_jwt_extended import (
+    jwt_required,
+    get_jwt,
+    get_jwt_identity
+)
+
+from app.services.audit import create_audit_log
 from app.modules.authentication import authentication_bp
+
 from app.modules.authentication.schemas import (
     ValidationError,
     validate_login_data,
     validate_registration_data,
 )
+
 from app.modules.authentication.services import (
     AuthenticationConfigurationError,
     AuthenticationError,
@@ -19,8 +29,11 @@ from app.modules.authentication.services import (
     register_user_account,
     revoke_session,
 )
-from app.modules.users.services import DuplicateUserError, UserPersistenceError
 
+from app.modules.users.services import (
+    DuplicateUserError,
+    UserPersistenceError,
+)
 
 def _serialize_user(user):
     return {
@@ -79,9 +92,23 @@ def refresh():
 @jwt_required(verify_type=False)
 def logout():
     """Revoke the session shared by the presented access and refresh tokens."""
-    revoke_session(get_jwt())
-    return jsonify(message="Successfully logged out."), 200
 
+    jwt_data = get_jwt()
+
+    user_id = jwt_data.get("sub")
+
+    revoke_session(jwt_data)
+
+    create_audit_log(
+        user_id=int(user_id),
+        action="LOGOUT",
+        status="SUCCESS",
+        ip=request.remote_addr
+    )
+
+    return jsonify(
+        message="Successfully logged out."
+    ), 200
 
 @authentication_bp.get("/protected")
 @jwt_required()
