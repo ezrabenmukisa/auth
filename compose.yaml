@@ -12,6 +12,8 @@ services:
     ports:
       - "${APP_PORT:-5001}:5000"
     environment: *app-environment
+    volumes:
+      - .:/app
     depends_on:
       db:
         condition: service_healthy

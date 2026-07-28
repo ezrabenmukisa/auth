@@ -16,6 +16,7 @@ EXPECTED_USER_COLUMNS = {
     "created_at",
     "updated_at",
     "role_id",
+    "is_suspended",
 }
 
 EXPECTED_REVOKED_TOKEN_COLUMNS = {
@@ -56,13 +57,15 @@ def test_migrations_create_complete_schema(app):
         )
 
     assert table_names == {
-        "alembic_version",
-        "permissions",
-        "revoked_tokens",
-        "role_permissions",
-        "roles",
-        "users",
-    }
+    "alembic_version",
+    "permissions",
+    "revoked_tokens",
+    "role_permissions",
+    "roles",
+    "users",
+    "audit_logs",
+}
+    
     assert user_columns == EXPECTED_USER_COLUMNS
     assert role_id_column["nullable"] is False
     assert revoked_token_columns == EXPECTED_REVOKED_TOKEN_COLUMNS

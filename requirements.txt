@@ -5,3 +5,5 @@ Flask-SQLAlchemy
 gunicorn
 psycopg[binary]
 python-dotenv
+pytest
+pytest-flask

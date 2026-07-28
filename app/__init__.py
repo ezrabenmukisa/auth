@@ -19,18 +19,21 @@ def create_app(config_class=Config):
         from app import models  # noqa: F401
 
     from app.cli.seed import seed_db
-    from app.health import health_bp
+    from app.health import health_bp as main_health_bp
     from app.modules.authentication import authentication_bp
     from app.modules.authentication.services import is_session_revoked
     from app.modules.authorization import authorization_bp
     from app.modules.users import users_bp
     from app.ui import ui_bp
+    from app.modules.security import security_bp
 
     app.register_blueprint(authentication_bp)
     app.register_blueprint(authorization_bp)
     app.register_blueprint(ui_bp)
-    app.register_blueprint(health_bp)
+    app.register_blueprint(main_health_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(security_bp)
+
     app.cli.add_command(seed_db)
 
     @jwt.token_in_blocklist_loader
