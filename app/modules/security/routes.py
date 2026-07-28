@@ -1,156 +1,128 @@
-"""Future security support HTTP routes."""
+"""HTTP routes for password security and account controls."""
 
-from datetime import datetime, timedelta
-from uuid import uuid4
+from flask import current_app, jsonify, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
 
-from flask import request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from werkzeug.security import generate_password_hash
-
+from app.modules.authorization.services import require_permission
 from app.modules.security import security_bp
-from app.extensions import db
-from app.models.users import User
-from app.models.password_reset import PasswordResetToken
-from app.services.audit import create_audit_log
+from app.modules.security.schemas import (
+    ValidationError,
+    parse_audit_query,
+    validate_forgot_password_data,
+    validate_reset_password_data,
+)
+from app.modules.security.services import (
+    SecurityError,
+    SecurityPersistenceError,
+    list_audit_logs,
+    request_password_reset,
+    send_password_reset_email,
+    set_account_suspension,
+)
+from app.modules.security.services import (
+    reset_password as reset_password_service,
+)
 
 
 @security_bp.post("/forgot-password")
 def forgot_password():
-    """Generate a password reset token."""
+    """Accept a password-reset request without disclosing account existence."""
+    try:
+        data = validate_forgot_password_data(request.get_json(silent=True) or {})
+        token = request_password_reset(data["email"], request.remote_addr)
+        if token is not None:
+            send_password_reset_email(data["email"], token)
+    except ValidationError as exc:
+        return jsonify(errors=exc.errors), 400
+    except SecurityPersistenceError as exc:
+        return jsonify(error=str(exc)), 500
 
-    data = request.get_json(silent=True) or {}
-
-    email = data.get("email")
-
-    user = db.session.scalar(
-        db.select(User).where(User.email == email)
-    )
-
-    if user:
-
-        token = str(uuid4())
-
-        reset = PasswordResetToken(
-            user_id=user.id,
-            token=token,
-            expires_at=datetime.utcnow() + timedelta(hours=1)
-        )
-
-        db.session.add(reset)
-
-        create_audit_log(
-            user_id=user.id,
-            action="PASSWORD_RESET_REQUEST",
-            status="SUCCESS"
-        )
-
-        db.session.commit()
-
-        return jsonify({
-            "message": "Password reset token generated",
-            "token": token
-        }), 200
-
-
-    return jsonify({
-        "message": "If account exists, reset instructions were sent"
-    }), 200
-
+    response = {
+        "message": "If the account exists, password-reset instructions were created."
+    }
+    if current_app.testing and token is not None:
+        response["reset_token"] = token
+    return jsonify(response), 200
 
 
 @security_bp.post("/reset-password")
 def reset_password():
-    """Reset password using a valid reset token."""
-
-    data = request.get_json(silent=True) or {}
-
-    token = data.get("token")
-    password = data.get("password")
-
-    reset = db.session.scalar(
-        db.select(PasswordResetToken)
-        .where(
-            PasswordResetToken.token == token
-        )
-    )
-
-    if not reset or reset.used:
-        return jsonify({
-            "message": "Invalid token"
-        }), 400
+    """Reset a password with an unused, unexpired reset token."""
+    try:
+        data = validate_reset_password_data(request.get_json(silent=True) or {})
+        reset_password_service(**data, ip_address=request.remote_addr)
+    except ValidationError as exc:
+        return jsonify(errors=exc.errors), 400
+    except SecurityError as exc:
+        status = 500 if isinstance(exc, SecurityPersistenceError) else 400
+        return jsonify(error=str(exc)), status
+    return jsonify(message="Password changed successfully."), 200
 
 
-    user = db.session.get(
-        User,
-        reset.user_id
-    )
-
-    if user is None:
-        return jsonify({
-            "message": "User not found"
-        }), 404
-
-
-    user.password_hash = generate_password_hash(
-        password
-    )
-
-    reset.used = True
-
-
-    create_audit_log(
-        user_id=user.id,
-        action="PASSWORD_RESET",
-        status="SUCCESS"
-    )
-
-    db.session.commit()
-
-
-    return jsonify({
-        "message": "Password changed successfully"
-    }), 200
-
-
-
-@security_bp.post("/change-password")
+@security_bp.post("/users/<int:user_id>/suspend")
 @jwt_required()
-def change_password():
-    """Change password for an authenticated user."""
+@require_permission("users.suspend")
+def suspend_user(user_id):
+    """Suspend another user's account."""
+    try:
+        set_account_suspension(
+            user_id,
+            suspended=True,
+            actor_id=int(get_jwt_identity()),
+            ip_address=request.remote_addr,
+        )
+    except SecurityError as exc:
+        status = 500 if isinstance(exc, SecurityPersistenceError) else 400
+        return jsonify(error=str(exc)), status
+    return jsonify(message="User suspended."), 200
 
-    user_id = get_jwt_identity()
 
-    data = request.get_json(silent=True) or {}
+@security_bp.post("/users/<int:user_id>/activate")
+@jwt_required()
+@require_permission("users.suspend")
+def activate_user(user_id):
+    """Reactivate another user's account."""
+    try:
+        set_account_suspension(
+            user_id,
+            suspended=False,
+            actor_id=int(get_jwt_identity()),
+            ip_address=request.remote_addr,
+        )
+    except SecurityError as exc:
+        status = 500 if isinstance(exc, SecurityPersistenceError) else 400
+        return jsonify(error=str(exc)), status
+    return jsonify(message="User activated."), 200
 
-    new_password = data.get("new_password")
 
+@security_bp.get("/audit-logs")
+@jwt_required()
+@require_permission("audit.read")
+def get_audit_logs():
+    """Return paginated security events to authorized administrators."""
+    try:
+        query = parse_audit_query(request.args)
+    except ValidationError as exc:
+        return jsonify(errors=exc.errors), 400
 
-    user = db.session.get(
-        User,
-        int(user_id)
+    pagination = list_audit_logs(**query)
+    return (
+        jsonify(
+            events=[
+                {
+                    "id": event.id,
+                    "user_id": event.user_id,
+                    "action": event.action,
+                    "status": event.status,
+                    "ip_address": event.ip_address,
+                    "created_at": event.created_at.isoformat(),
+                }
+                for event in pagination.items
+            ],
+            page=pagination.page,
+            per_page=pagination.per_page,
+            total=pagination.total,
+            total_pages=pagination.pages,
+        ),
+        200,
     )
-
-
-    if user is None:
-        return jsonify({
-            "message": "User not found"
-        }), 404
-
-
-    user.password_hash = generate_password_hash(
-        new_password
-    )
-
-
-    create_audit_log(
-        user_id=user.id,
-        action="PASSWORD_CHANGE",
-        status="SUCCESS"
-    )
-
-    db.session.commit()
-
-
-    return jsonify({
-        "message": "Password updated"
-    }), 200

@@ -69,9 +69,10 @@ flowchart LR
 | `app/modules/authentication/` | Registration orchestration, password hashing and verification, JWT lifecycle, logout, and revocation |
 | `app/modules/users/` | User creation, profile retrieval/update, search, and pagination |
 | `app/modules/authorization/` | Roles, permissions, assignments, and permission enforcement |
-| `app/modules/security/` | Reserved for later security features |
+| `app/modules/security/` | Password changes, password-reset lifecycle, and permission-protected account suspension |
 | `app/health/` | Liveness endpoint |
 | `app/cli/` | Interactive RBAC and bootstrap-Admin seeding |
+| `app/modules/security/audit.py` | Shared security and authentication audit-event recording |
 | `app/ui.py` | Login, registration, and role-dashboard page routes |
 | `app/templates/` | Server-rendered page shells |
 | `app/static/` | Browser-side session and dashboard behavior |
@@ -84,7 +85,11 @@ the shared session helper attempts one refresh-token exchange and retries the
 request. Logout revokes the shared session and clears both browser tokens.
 
 The dashboards resolve the current role through `/api/v1/auth/me` and redirect
-to the matching role page.
+to the matching role page. Users can update their profile from their account
+view. Admin UI controls call permission-protected APIs for account suspension,
+reactivation, and audit activity. Public recovery pages request a reset and
+accept the token from a Gmail SMTP-delivered reset link. Only a digest of the
+one-time token is stored in the database.
 
 ## Local Compose startup
 

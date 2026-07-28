@@ -1,10 +1,5 @@
 """Security support feature package."""
+
 from flask import Blueprint
 
-security_bp = Blueprint(
-    "security",
-    __name__,
-    url_prefix="/api/v1/security"
-)
-
-from app.modules.security import routes
+security_bp = Blueprint("security", __name__, url_prefix="/api/v1/security")

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from flask import current_app
-from flask_jwt_extended import create_access_token, create_refresh_token  # type: ignore[import]
+from flask_jwt_extended import create_access_token, create_refresh_token
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -12,8 +12,8 @@ from app.extensions import db
 from app.models.revoked_tokens import RevokedToken
 from app.models.roles import Role
 from app.models.users import User
+from app.modules.security.audit import create_audit_log
 from app.modules.users.services import create_user
-from app.services.audit import create_audit_log
 
 
 class AuthenticationError(Exception):
@@ -34,20 +34,14 @@ def _parse_user_id(user_id: str) -> int:
 
 def register_user_account(data: dict) -> User:
     """Hash a registration password and delegate user persistence."""
-    employee_role = db.session.scalar(
-        db.select(Role).where(Role.name == "Employee")
-    )
+    employee_role = db.session.scalar(db.select(Role).where(Role.name == "Employee"))
 
     if employee_role is None:
         raise AuthenticationConfigurationError(
             "Registration is unavailable until RBAC seed data is installed."
         )
 
-    user_data = {
-        key: value
-        for key, value in data.items()
-        if key != "password"
-    }
+    user_data = {key: value for key, value in data.items() if key != "password"}
 
     password_hash = generate_password_hash(data["password"])
 
@@ -63,82 +57,65 @@ def verify_password(user: User, password: str) -> bool:
     return check_password_hash(user.password_hash, password)
 
 
-def authenticate_user(identifier: str, password: str) -> User:
+def authenticate_user(
+    identifier: str,
+    password: str,
+    ip_address: str | None = None,
+) -> User:
     """Return an active user when credentials are valid."""
 
     user = db.session.scalar(
         db.select(User).where(
-            db.or_(
-                User.username == identifier,
-                User.email == identifier.lower()
-            )
+            db.or_(User.username == identifier, User.email == identifier.lower())
         )
     )
 
-
-    # User does not exist
     if user is None:
-
         create_audit_log(
             user_id=None,
             action="LOGIN",
             status="FAILED",
+            ip_address=ip_address,
         )
 
-        raise AuthenticationError(
-            "Invalid username/email or password."
-        )
+        raise AuthenticationError("Invalid username/email or password.")
 
-
-    # Wrong password
     if not verify_password(user, password):
-
         create_audit_log(
             user_id=user.id,
             action="LOGIN",
             status="FAILED",
+            ip_address=ip_address,
         )
 
-        raise AuthenticationError(
-            "Invalid username/email or password."
-        )
+        raise AuthenticationError("Invalid username/email or password.")
 
-
-    # Account disabled
     if not user.is_active:
-
         create_audit_log(
             user_id=user.id,
             action="LOGIN",
             status="INACTIVE_ACCOUNT",
+            ip_address=ip_address,
         )
 
-        raise AuthenticationError(
-            "Invalid username/email or password."
-        )
+        raise AuthenticationError("Invalid username/email or password.")
 
-
-    # Account suspended
     if user.is_suspended:
-
         create_audit_log(
             user_id=user.id,
             action="LOGIN",
             status="SUSPENDED_ACCOUNT",
+            ip_address=ip_address,
         )
 
-        raise AuthenticationError(
-            "Invalid username/email or password."
-        )
+        raise AuthenticationError("Invalid username/email or password.")
 
-
-    # Successful login
     create_audit_log(
         user_id=user.id,
         action="LOGIN",
         status="SUCCESS",
+        ip_address=ip_address,
     )
-
 
     return user
 
@@ -149,50 +126,33 @@ def issue_token_pair(user: User) -> dict[str, str]:
     session_id = str(uuid4())
 
     session_expires_at = (
-        datetime.now(timezone.utc)
-        + current_app.config["JWT_REFRESH_TOKEN_EXPIRES"]
+        datetime.now(timezone.utc) + current_app.config["JWT_REFRESH_TOKEN_EXPIRES"]
     )
 
     claims = {
         "sid": session_id,
-        "session_expires_at": int(
-            session_expires_at.timestamp()
-        ),
+        "session_expires_at": int(session_expires_at.timestamp()),
     }
 
     identity = str(user.id)
 
     return {
         "access_token": create_access_token(
-            identity=identity,
-            additional_claims=claims
+            identity=identity, additional_claims=claims
         ),
         "refresh_token": create_refresh_token(
-            identity=identity,
-            additional_claims=claims
+            identity=identity, additional_claims=claims
         ),
     }
 
 
-def issue_refreshed_access_token(
-    user_id: str,
-    jwt_claims: dict
-) -> str:
+def issue_refreshed_access_token(user_id: str, jwt_claims: dict) -> str:
     """Issue another access token for an active authenticated user."""
 
-    user = db.session.get(
-        User,
-        _parse_user_id(user_id)
-    )
+    user = db.session.get(User, _parse_user_id(user_id))
 
-    if (
-        user is None
-        or not user.is_active
-        or user.is_suspended
-    ):
-        raise AuthenticationError(
-            "Account is inactive or unavailable."
-        )
+    if user is None or not user.is_active or user.is_suspended:
+        raise AuthenticationError("Account is inactive or unavailable.")
 
     try:
         session_expires_at = datetime.fromtimestamp(
@@ -200,43 +160,19 @@ def issue_refreshed_access_token(
             tz=timezone.utc,
         )
 
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-        OSError
-    ) as exc:
+    except (KeyError, TypeError, ValueError, OSError) as exc:
+        raise AuthenticationError("Invalid authentication session.") from exc
 
-        raise AuthenticationError(
-            "Invalid authentication session."
-        ) from exc
-
-
-    remaining_session_time = (
-        session_expires_at
-        - datetime.now(timezone.utc)
-    )
-
+    remaining_session_time = session_expires_at - datetime.now(timezone.utc)
     if remaining_session_time.total_seconds() <= 0:
-        raise AuthenticationError(
-            "Authentication session has expired."
-        )
-
-
-    access_token_lifetime = (
-        current_app.config["JWT_ACCESS_TOKEN_EXPIRES"]
-    )
-
-    access_token_expires = min(
-        access_token_lifetime,
-        remaining_session_time
-    )
+        raise AuthenticationError("Authentication session has expired.")
+    access_token_lifetime = current_app.config["JWT_ACCESS_TOKEN_EXPIRES"]
+    access_token_expires = min(access_token_lifetime, remaining_session_time)
 
     claims = {
         "sid": jwt_claims["sid"],
         "session_expires_at": jwt_claims["session_expires_at"],
     }
-
 
     return create_access_token(
         identity=str(user.id),
@@ -248,19 +184,10 @@ def issue_refreshed_access_token(
 def get_active_user(user_id: str) -> User:
     """Return the active user represented by a valid access token."""
 
-    user = db.session.get(
-        User,
-        _parse_user_id(user_id)
-    )
+    user = db.session.get(User, _parse_user_id(user_id))
 
-    if (
-        user is None
-        or not user.is_active
-        or user.is_suspended
-    ):
-        raise AuthenticationError(
-            "Account is inactive or unavailable."
-        )
+    if user is None or not user.is_active or user.is_suspended:
+        raise AuthenticationError("Account is inactive or unavailable.")
 
     return user
 
@@ -271,48 +198,33 @@ def revoke_session(jwt_claims: dict) -> RevokedToken:
     session_id = jwt_claims["sid"]
 
     existing = db.session.scalar(
-        db.select(RevokedToken).where(
-            RevokedToken.session_id == session_id
-        )
+        db.select(RevokedToken).where(RevokedToken.session_id == session_id)
     )
 
     if existing is not None:
         return existing
 
-
     revoked = RevokedToken(
         session_id=session_id,
         expires_at=datetime.fromtimestamp(
-            jwt_claims["session_expires_at"],
-            tz=timezone.utc
+            jwt_claims["session_expires_at"], tz=timezone.utc
         ),
     )
-
 
     try:
         db.session.add(revoked)
         db.session.commit()
-
     except IntegrityError:
-
         db.session.rollback()
-
         existing = db.session.scalar(
-            db.select(RevokedToken).where(
-                RevokedToken.session_id == session_id
-            )
+            db.select(RevokedToken).where(RevokedToken.session_id == session_id)
         )
-
         if existing is not None:
             return existing
-
         raise
-
     except SQLAlchemyError:
-
         db.session.rollback()
         raise
-
 
     return revoked
 
@@ -325,9 +237,7 @@ def is_session_revoked(jwt_claims: dict) -> bool:
     return bool(
         session_id
         and db.session.scalar(
-            db.select(RevokedToken).where(
-                RevokedToken.session_id == session_id
-            )
+            db.select(RevokedToken).where(RevokedToken.session_id == session_id)
         )
         is not None
     )

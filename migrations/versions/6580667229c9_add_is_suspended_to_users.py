@@ -1,8 +1,7 @@
 """add is_suspended to users"""
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "6580667229c9"
 down_revision = "5b03f5004cc0"
@@ -17,7 +16,7 @@ def upgrade():
                 "is_suspended",
                 sa.Boolean(),
                 nullable=False,
-                server_default=sa.text("false")
+                server_default=sa.text("false"),
             )
         )
 

@@ -10,6 +10,7 @@
       <button class="nav-item admin manager" data-view="roles">Roles</button>
       <button class="nav-item admin accountant manager" data-view="permissions">Permissions</button>
       <button class="nav-item admin" data-view="people">People</button>
+      <button class="nav-item admin" data-view="audit">Security activity</button>
       <button class="nav-item" data-view="profile">My profile</button>
     </nav>
     <button id="logout-button" class="logout-button">Sign out</button>
@@ -94,6 +95,20 @@
         <button id="people-previous" class="button secondary" type="button">Previous</button>
         <span id="people-page">Page 1</span>
         <button id="people-next" class="button secondary" type="button">Next</button>
+      </div>
+    </section>
+
+    <section id="audit-view" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">Security history</p><h2>Audit activity</h2></div>
+        <button id="refresh-audit" class="button secondary">Refresh</button>
+      </div>
+      <p class="muted section-note">Review login, logout, password and account-status events.</p>
+      <div id="audit-list" class="audit-list"></div>
+      <div class="pagination-bar">
+        <button id="audit-previous" class="button secondary" type="button">Previous</button>
+        <span id="audit-page">Page 1</span>
+        <button id="audit-next" class="button secondary" type="button">Next</button>
       </div>
     </section>
 

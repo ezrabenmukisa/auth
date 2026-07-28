@@ -6,6 +6,8 @@ let permissionsCache = [];
 let peoplePage = 1;
 let peopleTotalPages = 1;
 let peopleSearch = "";
+let auditPage = 1;
+let auditTotalPages = 1;
 
 const rolePaths = {
   Admin: "/admin",
@@ -38,7 +40,8 @@ function showView(name) {
 function applyRole(role) {
   document.body.dataset.role = role.toLowerCase();
   document.querySelectorAll(".nav-item").forEach((item) => {
-    const unrestricted = !["roles", "permissions", "people"].includes(item.dataset.view);
+    const unrestricted =
+      !["roles", "permissions", "people", "audit"].includes(item.dataset.view);
     const allowed = unrestricted || item.classList.contains(role.toLowerCase());
     item.hidden = !allowed;
   });
@@ -123,17 +126,25 @@ async function loadPeople() {
         (user.full_name || user.username)[0].toUpperCase())}</div>
       <div class="person-copy">
         <strong>${escapeHtml(user.full_name || user.username)}</strong>
-        <span>@${escapeHtml(user.username)} · ${escapeHtml(user.email)}</span>
+        <span>@${escapeHtml(user.username)} · ${escapeHtml(user.email)} ·
+          ${user.is_suspended ? "Suspended" : "Active"}</span>
       </div>
       ${user.id === currentUser.id
         ? `<span class="self-role-label">${escapeHtml(
           user.role ? user.role.name : "No role")} · Your account</span>`
-        : `<select data-user-id="${user.id}" aria-label="Role for ${escapeHtml(
-          user.username)}">
-            ${rolesCache.map((role) => `<option value="${role.id}"
-              ${user.role && role.id === user.role.id ? "selected" : ""}>
-              ${escapeHtml(role.name)}</option>`).join("")}
-          </select>`}
+        : `<div class="person-actions">
+            <select data-user-id="${user.id}" aria-label="Role for ${escapeHtml(
+              user.username)}">
+              ${rolesCache.map((role) => `<option value="${role.id}"
+                ${user.role && role.id === user.role.id ? "selected" : ""}>
+                ${escapeHtml(role.name)}</option>`).join("")}
+            </select>
+            <button class="button ${user.is_suspended ? "secondary" : "danger"}"
+              type="button" data-account-action="${user.is_suspended
+                ? "activate" : "suspend"}" data-user-id="${user.id}">
+              ${user.is_suspended ? "Reactivate" : "Suspend"}
+            </button>
+          </div>`}
     </article>`).join("") || "<p class=\"muted\">No people matched your search.</p>";
 
   document.getElementById("people-page").textContent =
@@ -142,6 +153,7 @@ async function loadPeople() {
   document.getElementById("people-next").disabled = peoplePage >= peopleTotalPages;
 
   document.querySelectorAll("[data-user-id]").forEach((select) => {
+    if (select.tagName !== "SELECT") return;
     select.addEventListener("change", async () => {
       try {
         await AuthSession.request(
@@ -155,6 +167,45 @@ async function loadPeople() {
       }
     });
   });
+
+  document.querySelectorAll("[data-account-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.accountAction;
+      if (action === "suspend" &&
+          !window.confirm("Suspend this account and block future access?")) return;
+      try {
+        await AuthSession.request(
+          `/api/v1/security/users/${button.dataset.userId}/${action}`,
+          { method: "POST" }
+        );
+        showMessage(
+          action === "suspend" ? "Account suspended." : "Account reactivated.",
+          "success"
+        );
+        await loadPeople();
+      } catch (error) {
+        showMessage(error.message, "error");
+      }
+    });
+  });
+}
+
+async function loadAuditLogs() {
+  const response = await AuthSession.request(
+    `/api/v1/security/audit-logs?page=${auditPage}&per_page=15`);
+  auditTotalPages = Math.max(response.total_pages, 1);
+  document.getElementById("audit-list").innerHTML = response.events.map((event) => `
+    <article class="audit-row">
+      <div><strong>${escapeHtml(event.action.replaceAll("_", " "))}</strong>
+        <span>${escapeHtml(event.status)}</span></div>
+      <div><span>User</span><strong>${escapeHtml(event.user_id || "Unknown")}</strong></div>
+      <div><span>IP address</span><strong>${escapeHtml(event.ip_address || "Unavailable")}</strong></div>
+      <time>${escapeHtml(new Date(event.created_at).toLocaleString())}</time>
+    </article>`).join("") || "<p class=\"muted\">No security events recorded.</p>";
+  document.getElementById("audit-page").textContent =
+    `Page ${auditPage} of ${auditTotalPages} · ${response.total} events`;
+  document.getElementById("audit-previous").disabled = auditPage <= 1;
+  document.getElementById("audit-next").disabled = auditPage >= auditTotalPages;
 }
 
 function populateProfile(user) {
@@ -271,6 +322,7 @@ document.querySelectorAll(".nav-item").forEach((item) =>
       if (item.dataset.view === "roles") await loadRoles();
       if (item.dataset.view === "permissions") await loadPermissions();
       if (item.dataset.view === "people") await loadPeople();
+      if (item.dataset.view === "audit") await loadAuditLogs();
       if (item.dataset.view === "profile") populateProfile(currentUser);
     } catch (error) {
       showMessage(error.message, "error");
@@ -288,6 +340,8 @@ document.getElementById("refresh-permissions").addEventListener("click", () =>
   loadPermissions().catch((error) => showMessage(error.message, "error")));
 document.getElementById("refresh-people").addEventListener("click", () =>
   loadPeople().catch((error) => showMessage(error.message, "error")));
+document.getElementById("refresh-audit").addEventListener("click", () =>
+  loadAuditLogs().catch((error) => showMessage(error.message, "error")));
 
 document.getElementById("create-role-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -410,6 +464,14 @@ document.getElementById("people-previous").addEventListener("click", async () =>
 document.getElementById("people-next").addEventListener("click", async () => {
   if (peoplePage < peopleTotalPages) peoplePage += 1;
   await loadPeople().catch((error) => showMessage(error.message, "error"));
+});
+document.getElementById("audit-previous").addEventListener("click", async () => {
+  if (auditPage > 1) auditPage -= 1;
+  await loadAuditLogs().catch((error) => showMessage(error.message, "error"));
+});
+document.getElementById("audit-next").addEventListener("click", async () => {
+  if (auditPage < auditTotalPages) auditPage += 1;
+  await loadAuditLogs().catch((error) => showMessage(error.message, "error"));
 });
 
 document.getElementById("profile-form").addEventListener("submit", async (event) => {

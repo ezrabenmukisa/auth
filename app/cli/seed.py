@@ -34,6 +34,9 @@ AUTHORIZATION_PERMISSIONS = [
     ("permissions.update", "Edit permissions"),
     ("permissions.delete", "Delete permissions"),
     ("permissions.assign", "Assign or remove a permission on a role"),
+    ("users.read", "List and search user accounts"),
+    ("users.suspend", "Suspend or reactivate user accounts"),
+    ("audit.read", "View security audit events"),
 ]
 
 ROLE_PERMISSIONS = {
