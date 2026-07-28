@@ -4,6 +4,7 @@ import pytest
 from flask_jwt_extended import create_access_token
 
 from app.extensions import db
+from app.models.permissions import Permission
 from app.models.roles import Role
 from app.models.users import User
 from app.modules.users.schemas import ValidationError, validate_user_creation_data
@@ -37,6 +38,25 @@ def _auth_headers(app, user_id):
     with app.app_context():
         token = create_access_token(identity=str(user_id))
     return {"Authorization": f"Bearer {token}"}
+
+
+def _admin_headers(app):
+    with app.app_context():
+        permission = Permission(name="users.read", description="View users")
+        role = Role(name="Admin", description="Test administrator")
+        role.permissions.append(permission)
+        db.session.add_all([permission, role])
+        db.session.commit()
+        user_id = _create_user(
+            app,
+            99,
+            username="listadmin",
+            email="listadmin@example.com",
+        )
+        user = db.session.get(User, user_id)
+        user.role = role
+        db.session.commit()
+        return _auth_headers(app, user_id)
 
 
 def test_registration_http_route_is_disabled(client):
@@ -119,6 +139,7 @@ def test_get_profile_success(app, client):
         "email": "test1@example.com",
         "full_name": "Test User 1",
         "is_active": True,
+        "is_suspended": False,
     }
 
 
@@ -203,14 +224,37 @@ def test_profile_routes_require_authentication(app, client):
     )
 
 
+def test_suspended_user_cannot_access_profile(app, client):
+    user_id = _create_user(app)
+    headers = _auth_headers(app, user_id)
+    with app.app_context():
+        user = db.session.get(User, user_id)
+        user.is_suspended = True
+        db.session.commit()
+
+    assert client.get(f"/api/v1/users/{user_id}", headers=headers).status_code == 401
+    assert (
+        client.patch(
+            f"/api/v1/users/{user_id}",
+            json={"full_name": "Changed"},
+            headers=headers,
+        ).status_code
+        == 401
+    )
+
+
+def test_list_users_requires_authentication(client):
+    assert client.get("/api/v1/users/").status_code == 401
+
+
 def test_list_users_success(app, client):
     _create_user(app)
 
-    response = client.get("/api/v1/users/")
+    response = client.get("/api/v1/users/", headers=_admin_headers(app))
 
     assert response.status_code == 200
     body = response.get_json()
-    assert body["total"] == 1
+    assert body["total"] == 2
     assert body["users"][0]["username"] == "testuser1"
     assert "password_hash" not in body["users"][0]
 
@@ -219,7 +263,10 @@ def test_list_users_search_finds_matching_user(app, client):
     _create_user(app, 1, username="alice")
     _create_user(app, 2, username="bob")
 
-    response = client.get("/api/v1/users/?search=alice")
+    response = client.get(
+        "/api/v1/users/?search=alice",
+        headers=_admin_headers(app),
+    )
 
     assert response.status_code == 200
     body = response.get_json()
@@ -230,7 +277,10 @@ def test_list_users_search_finds_matching_user(app, client):
 def test_list_users_search_returns_no_match(app, client):
     _create_user(app)
 
-    response = client.get("/api/v1/users/?search=missing")
+    response = client.get(
+        "/api/v1/users/?search=missing",
+        headers=_admin_headers(app),
+    )
 
     assert response.status_code == 200
     assert response.get_json()["users"] == []
@@ -241,12 +291,13 @@ def test_list_users_paginates_across_pages(app, client):
     for number in range(1, 6):
         _create_user(app, number)
 
-    first_response = client.get("/api/v1/users/?page=1&per_page=2")
-    second_response = client.get("/api/v1/users/?page=2&per_page=2")
+    headers = _admin_headers(app)
+    first_response = client.get("/api/v1/users/?page=1&per_page=2", headers=headers)
+    second_response = client.get("/api/v1/users/?page=2&per_page=2", headers=headers)
 
     first = first_response.get_json()
     second = second_response.get_json()
-    assert first["total"] == 5
+    assert first["total"] == 6
     assert first["total_pages"] == 3
     assert [user["username"] for user in first["users"]] == [
         "testuser1",
@@ -259,16 +310,18 @@ def test_list_users_paginates_across_pages(app, client):
 
 
 @pytest.mark.parametrize("page", ["0", "-1", "abc"])
-def test_list_users_rejects_invalid_page(client, page):
-    response = client.get(f"/api/v1/users/?page={page}")
+def test_list_users_rejects_invalid_page(app, client, page):
+    response = client.get(f"/api/v1/users/?page={page}", headers=_admin_headers(app))
 
     assert response.status_code == 400
     assert "page" in response.get_json()["errors"]
 
 
 @pytest.mark.parametrize("per_page", ["0", "-1", "abc", "101"])
-def test_list_users_rejects_invalid_per_page(client, per_page):
-    response = client.get(f"/api/v1/users/?per_page={per_page}")
+def test_list_users_rejects_invalid_per_page(app, client, per_page):
+    response = client.get(
+        f"/api/v1/users/?per_page={per_page}", headers=_admin_headers(app)
+    )
 
     assert response.status_code == 400
     assert "per_page" in response.get_json()["errors"]

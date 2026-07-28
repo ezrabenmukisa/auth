@@ -23,6 +23,18 @@ def register_page():
     return render_template("register.html")
 
 
+@ui_bp.get("/forgot-password")
+def forgot_password_page():
+    """Render the password-reset request page."""
+    return render_template("forgot_password.html")
+
+
+@ui_bp.get("/reset-password")
+def reset_password_page():
+    """Render the password-reset completion page."""
+    return render_template("reset_password.html")
+
+
 @ui_bp.get("/dashboard")
 def dashboard_router():
     """Render the dashboard shell while the browser resolves the role."""

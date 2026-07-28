@@ -78,6 +78,23 @@ host is `db`, the PostgreSQL service name.
 
 Never commit `.env`.
 
+For password-reset emails, configure a Gmail account with Two-Step
+Verification and a dedicated App Password:
+
+```dotenv
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USE_SSL=true
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-gmail-app-password
+MAIL_DEFAULT_SENDER=your-email@gmail.com
+PUBLIC_APP_URL=http://localhost:5001
+```
+
+`PUBLIC_APP_URL` must be the browser-visible application address because it is
+used to construct the reset link. Configure the hosted HTTPS address in
+Railway. Never use a normal Gmail password or commit an App Password.
+
 ### Build and start
 
 ```bash
@@ -141,6 +158,8 @@ Open `http://localhost:5001`.
 |---|---|
 | `/login` | Sign in with username or email |
 | `/register` | Create an Employee account |
+| `/forgot-password` | Request password-reset instructions |
+| `/reset-password?token=...` | Complete password recovery from a reset link |
 | `/dashboard` | Resolve the dashboard for the current role |
 | `/admin` | Admin dashboard |
 | `/manager` | Manager dashboard |

@@ -4,6 +4,13 @@ x-app-environment: &app-environment
   JWT_ACCESS_TOKEN_MINUTES: "${JWT_ACCESS_TOKEN_MINUTES:-15}"
   JWT_REFRESH_TOKEN_DAYS: "${JWT_REFRESH_TOKEN_DAYS:-30}"
   DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-auth}:${POSTGRES_PASSWORD:-auth-development-password}@db:5432/${POSTGRES_DB:-auth}"
+  MAIL_SERVER: "${MAIL_SERVER:-smtp.gmail.com}"
+  MAIL_PORT: "${MAIL_PORT:-465}"
+  MAIL_USE_SSL: "${MAIL_USE_SSL:-true}"
+  MAIL_USERNAME: "${MAIL_USERNAME:-}"
+  MAIL_PASSWORD: "${MAIL_PASSWORD:-}"
+  MAIL_DEFAULT_SENDER: "${MAIL_DEFAULT_SENDER:-}"
+  PUBLIC_APP_URL: "${PUBLIC_APP_URL:-http://localhost:5001}"
 
 services:
   web:

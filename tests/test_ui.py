@@ -4,7 +4,7 @@ from app.cli.seed import seed_development_data
 
 
 def test_public_ui_pages_render(client):
-    for path in ("/", "/login", "/register"):
+    for path in ("/", "/login", "/register", "/forgot-password", "/reset-password"):
         response = client.get(path, follow_redirects=True)
         assert response.status_code == 200
 
@@ -17,6 +17,18 @@ def test_auth_pages_include_password_visibility_and_confirmation(client):
     assert b'data-password-toggle="password"' in register.data
     assert b'data-password-toggle="confirm-password"' in register.data
     assert b'name="confirm_password"' in register.data
+    assert b"/forgot-password" in login.data
+
+
+def test_recovery_pages_include_expected_forms(client):
+    forgot = client.get("/forgot-password")
+    reset = client.get("/reset-password?token=example-token")
+
+    assert b"forgot-password-form" in forgot.data
+    assert b"recovery-next-steps" in forgot.data
+    assert b"Send reset link" in forgot.data
+    assert b"reset-password-form" in reset.data
+    assert b'name="confirm_password"' in reset.data
 
 
 def test_role_dashboard_pages_render(client):
@@ -36,6 +48,7 @@ def test_admin_dashboard_exposes_existing_management_controls(client):
     assert b"role-permissions-panel" in response.data
     assert b"create-role-form" in response.data
     assert b"create-permission-form" in response.data
+    assert b'data-view="audit"' in response.data
 
 
 def test_current_user_endpoint_returns_role(app, client):

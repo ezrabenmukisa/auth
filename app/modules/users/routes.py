@@ -27,6 +27,7 @@ def _serialize_user(user):
         "email": user.email,
         "full_name": user.full_name,
         "is_active": user.is_active,
+        "is_suspended": user.is_suspended,
     }
 
 
@@ -38,7 +39,11 @@ def _authorize_profile_owner(user_id):
         return jsonify(error="Invalid authentication identity."), 401
 
     authenticated_user = db.session.get(User, authenticated_user_id)
-    if authenticated_user is None or not authenticated_user.is_active:
+    if (
+        authenticated_user is None
+        or not authenticated_user.is_active
+        or authenticated_user.is_suspended
+    ):
         return jsonify(error="Account is inactive or unavailable."), 401
     if authenticated_user_id != user_id:
         return jsonify(error="You can only access your own profile."), 403
@@ -84,8 +89,22 @@ def patch_profile(user_id):
 
 
 @users_bp.get("/")
+@jwt_required()
 def list_all():
     """List and search users, with pagination."""
+    from app.modules.authentication.services import (
+        AuthenticationError,
+        get_active_user,
+    )
+    from app.modules.authorization.services import has_permission
+
+    try:
+        authenticated_user = get_active_user(get_jwt_identity())
+    except AuthenticationError as exc:
+        return jsonify(error=str(exc)), 401
+    if not has_permission(authenticated_user, "users.read"):
+        return jsonify(error="Permission denied."), 403
+
     try:
         query_params = parse_list_query(request.args)
     except ValidationError as exc:

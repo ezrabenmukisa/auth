@@ -16,6 +16,7 @@ EXPECTED_USER_COLUMNS = {
     "created_at",
     "updated_at",
     "role_id",
+    "is_suspended",
 }
 
 EXPECTED_REVOKED_TOKEN_COLUMNS = {
@@ -23,6 +24,15 @@ EXPECTED_REVOKED_TOKEN_COLUMNS = {
     "session_id",
     "expires_at",
     "revoked_at",
+}
+
+EXPECTED_PASSWORD_RESET_COLUMNS = {
+    "id",
+    "user_id",
+    "token",
+    "expires_at",
+    "used",
+    "created_at",
 }
 
 
@@ -45,6 +55,9 @@ def test_migrations_create_complete_schema(app):
         revoked_token_columns = {
             column["name"] for column in inspector.get_columns("revoked_tokens")
         }
+        password_reset_columns = {
+            column["name"] for column in inspector.get_columns("password_reset_tokens")
+        }
         role_id_column = next(
             column
             for column in inspector.get_columns("users")
@@ -57,6 +70,8 @@ def test_migrations_create_complete_schema(app):
 
     assert table_names == {
         "alembic_version",
+        "audit_logs",
+        "password_reset_tokens",
         "permissions",
         "revoked_tokens",
         "role_permissions",
@@ -66,6 +81,7 @@ def test_migrations_create_complete_schema(app):
     assert user_columns == EXPECTED_USER_COLUMNS
     assert role_id_column["nullable"] is False
     assert revoked_token_columns == EXPECTED_REVOKED_TOKEN_COLUMNS
+    assert password_reset_columns == EXPECTED_PASSWORD_RESET_COLUMNS
     assert any(
         index["column_names"] == ["session_id"] and index["unique"]
         for index in revoked_token_indexes

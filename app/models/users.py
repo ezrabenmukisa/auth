@@ -20,6 +20,9 @@ class User(db.Model):
     password_hash: Mapped[str] = mapped_column(db.String(255), nullable=False)
     full_name: Mapped[str | None] = mapped_column(db.String(150), nullable=True)
     is_active: Mapped[bool] = mapped_column(db.Boolean, default=True, nullable=False)
+    is_suspended: Mapped[bool] = mapped_column(
+        db.Boolean, default=False, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -29,7 +32,6 @@ class User(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-
     role_id: Mapped[int] = mapped_column(
         db.Integer,
         db.ForeignKey("roles.id"),

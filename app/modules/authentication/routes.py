@@ -19,6 +19,7 @@ from app.modules.authentication.services import (
     register_user_account,
     revoke_session,
 )
+from app.modules.security.audit import create_audit_log
 from app.modules.users.services import DuplicateUserError, UserPersistenceError
 
 
@@ -29,6 +30,7 @@ def _serialize_user(user):
         "email": user.email,
         "full_name": user.full_name,
         "is_active": user.is_active,
+        "is_suspended": user.is_suspended,
     }
 
 
@@ -56,7 +58,7 @@ def login():
     payload = request.get_json(silent=True) or {}
     try:
         clean_data = validate_login_data(payload)
-        user = authenticate_user(**clean_data)
+        user = authenticate_user(**clean_data, ip_address=request.remote_addr)
     except ValidationError as exc:
         return jsonify(errors=exc.errors), 400
     except AuthenticationError as exc:
@@ -79,8 +81,22 @@ def refresh():
 @jwt_required(verify_type=False)
 def logout():
     """Revoke the session shared by the presented access and refresh tokens."""
-    revoke_session(get_jwt())
+    jwt_data = get_jwt()
+    revoke_session(jwt_data)
+    create_audit_log(
+        action="LOGOUT",
+        status="SUCCESS",
+        user_id=_safe_audit_user_id(jwt_data.get("sub")),
+        ip_address=request.remote_addr,
+    )
     return jsonify(message="Successfully logged out."), 200
+
+
+def _safe_audit_user_id(identity):
+    try:
+        return int(identity)
+    except (TypeError, ValueError):
+        return None
 
 
 @authentication_bp.get("/protected")

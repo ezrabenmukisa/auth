@@ -24,7 +24,7 @@ Authorization: Bearer <token>
 |---|---|---|---|
 | GET | `/api/v1/users/<user_id>` | The authenticated profile owner | View a profile |
 | PATCH | `/api/v1/users/<user_id>` | The authenticated profile owner | Update `full_name` |
-| GET | `/api/v1/users/` | Current implementation route | List/search users with pagination |
+| GET | `/api/v1/users/` | `users.read` | List/search users with pagination |
 
 List parameters:
 
@@ -64,6 +64,21 @@ A role assigned to users cannot be deleted until those users are reassigned.
 | Method | Endpoint | Purpose |
 |---|---|---|
 | GET | `/health/live` | Confirm that the Flask service is running |
+
+## Security
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/security/forgot-password` | Public | Request a one-time password-reset token |
+| POST | `/api/v1/security/reset-password` | Public reset token | Replace a password using an unused, unexpired token |
+| POST | `/api/v1/security/users/<user_id>/suspend` | `users.suspend` | Suspend another account |
+| POST | `/api/v1/security/users/<user_id>/activate` | `users.suspend` | Reactivate another account |
+| GET | `/api/v1/security/audit-logs` | `audit.read` | Review paginated security events |
+
+Password-reset requests always return the same public message, whether or not
+the email exists. The raw reset token is not stored in the database or returned
+outside the test configuration. A delivery integration is still required to
+send reset instructions to users.
 
 ## Status-code conventions
 

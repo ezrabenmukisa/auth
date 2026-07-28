@@ -18,6 +18,8 @@ deployment.
 - Password hashing and username-or-email login
 - JWT access tokens, refresh tokens, logout, and session revocation
 - Roles, permissions, role assignment, and permission enforcement
+- Single-use password-reset tokens, account suspension, and security audit
+  records
 - Admin, Manager, Accountant, and Employee dashboards
 - SQLAlchemy models and Alembic migrations
 - Interactive bootstrap-Admin and RBAC seeding

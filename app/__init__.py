@@ -23,6 +23,8 @@ def create_app(config_class=Config):
     from app.modules.authentication import authentication_bp
     from app.modules.authentication.services import is_session_revoked
     from app.modules.authorization import authorization_bp
+    from app.modules.security import routes as security_routes  # noqa: F401
+    from app.modules.security import security_bp
     from app.modules.users import users_bp
     from app.ui import ui_bp
 
@@ -31,6 +33,7 @@ def create_app(config_class=Config):
     app.register_blueprint(ui_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(security_bp)
     app.cli.add_command(seed_db)
 
     @jwt.token_in_blocklist_loader
