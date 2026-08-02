@@ -9,8 +9,12 @@ deployment.
 
 - [Application setup](docs/setup.md)
 - [Architecture](docs/architecture.md)
-- [API reference](docs/api.md)
+- [OpenAPI specification](docs/openapi.yaml)
 - [Academic project proposal](docs/PROPOSAL.md)
+
+After starting the application, open `/api/docs` for the interactive Swagger UI
+or `/api/openapi.yaml` for the shared OpenAPI document used by documentation
+tools such as GitBook.
 
 ## Current capabilities
 

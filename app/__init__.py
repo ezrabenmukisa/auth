@@ -18,6 +18,7 @@ def create_app(config_class=Config):
     with app.app_context():
         from app import models  # noqa: F401
 
+    from app.api_docs import api_docs_bp
     from app.cli.seed import seed_db
     from app.health import health_bp
     from app.modules.authentication import authentication_bp
@@ -30,6 +31,7 @@ def create_app(config_class=Config):
 
     app.register_blueprint(authentication_bp)
     app.register_blueprint(authorization_bp)
+    app.register_blueprint(api_docs_bp)
     app.register_blueprint(ui_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(users_bp)
