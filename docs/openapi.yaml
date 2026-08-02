@@ -1,0 +1,1157 @@
+openapi: 3.0.3
+info:
+  title: Access Hub API
+  version: 0.2.0
+  description: |
+    Developer API for user accounts, authentication, session management,
+    role-based authorization, and account security.
+servers:
+  - url: /
+    description: Same server hosting this documentation
+  - url: http://localhost:5000
+    description: Local native Flask server
+  - url: http://localhost:5001
+    description: Local Docker Compose
+  - url: https://authmicroservice.up.railway.app
+    description: Railway deployment
+tags:
+  - name: Health
+    description: Service availability checks
+  - name: Authentication
+    description: Account registration and authentication
+  - name: Users
+    description: User profiles, search, and pagination
+  - name: Roles
+    description: Role management and user-role assignment
+  - name: Permissions
+    description: Permission management and role-permission assignment
+  - name: Security
+    description: Password recovery, account controls, and security events
+paths:
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Check service liveness
+      description: Confirms that the Flask application is running and accepting requests.
+      operationId: getServiceLiveness
+      responses:
+        "200":
+          description: The service is running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                message: Service is running
+                status: ok
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register an Employee account
+      description: |
+        Validates the public account details, hashes the password, and creates
+        a user with the seeded Employee role.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistrationRequest"
+            example:
+              username: ezra
+              email: ezra@example.com
+              password: Password123
+              full_name: Mukisa Ben Ezra
+      responses:
+        "201":
+          description: Account created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicUser"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/ConflictError"
+        "503":
+          description: Registration is unavailable because required RBAC seed data is missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in with a username or email
+      description: Verifies the credentials and returns one access/refresh token pair.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              username:
+                summary: Login with username
+                value:
+                  identifier: ezra
+                  password: Password123
+              email:
+                summary: Login with email
+                value:
+                  identifier: ezra@example.com
+                  password: Password123
+      responses:
+        "200":
+          description: Authentication succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: The credentials are invalid or the account is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get the current account
+      description: Returns public account and role information for the access-token owner.
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current account information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/auth/protected:
+    get:
+      tags:
+        - Authentication
+      summary: Test access-token authentication
+      description: Demonstrates a route that requires a valid access token and active account.
+      operationId: accessProtectedResource
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The access token and account are valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtectedResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Issue a new access token
+      description: |
+        Requires the refresh token in the Bearer header. The new access token
+        retains the original session ID and cannot outlive the shared session.
+      operationId: refreshAccessToken
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: A new access token was issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessTokenResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Revoke the current login session
+      description: |
+        Accepts either token from the pair and revokes their shared session.
+        After logout, both the access token and refresh token become unusable.
+      operationId: logoutUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The shared session was revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              example:
+                message: Successfully logged out.
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/users/{user_id}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Users]
+      summary: Get your user profile
+      description: The authenticated user may retrieve only their own profile.
+      operationId: getUserProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicUser"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+    patch:
+      tags: [Users]
+      summary: Update your user profile
+      description: Updates only the full name of the authenticated profile owner.
+      operationId: updateUserProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Profile updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicUser"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+  /api/v1/users/:
+    get:
+      tags: [Users]
+      summary: List and search users
+      description: Requires the `users.read` permission.
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated users returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+  /api/v1/authorization/roles:
+    get:
+      tags: [Roles]
+      summary: List roles
+      description: Requires the `roles.read` permission.
+      operationId: listRoles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Roles returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+    post:
+      tags: [Roles]
+      summary: Create a role
+      description: Requires the `roles.create` permission.
+      operationId: createRole
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/RoleInput"
+      responses:
+        "201":
+          description: Role created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+  /api/v1/authorization/roles/{role_id}:
+    parameters:
+      - $ref: "#/components/parameters/RoleId"
+    get:
+      tags: [Roles]
+      summary: Get a role
+      description: Requires the `roles.read` permission.
+      operationId: getRole
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Role returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+    put:
+      tags: [Roles]
+      summary: Update a role
+      description: Requires the `roles.update` permission.
+      operationId: updateRole
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/RoleInput"
+      responses:
+        "200":
+          description: Role updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+    delete:
+      tags: [Roles]
+      summary: Delete a role
+      description: Requires `roles.delete`; roles assigned to users cannot be deleted.
+      operationId: deleteRole
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Role deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+  /api/v1/authorization/users/{user_id}/role:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Roles]
+      summary: Get a user's role
+      description: Requires the `roles.read` permission.
+      operationId: getUserRole
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Assigned role, or null when no role is assigned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NullableRole"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+    put:
+      tags: [Roles]
+      summary: Assign a role to a user
+      description: Requires the `roles.assign` permission.
+      operationId: assignUserRole
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleAssignment"
+      responses:
+        "200":
+          description: Role assigned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignmentResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+  /api/v1/authorization/permissions:
+    get:
+      tags: [Permissions]
+      summary: List permissions
+      description: Requires the `permissions.read` permission.
+      operationId: listPermissions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Permissions returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+    post:
+      tags: [Permissions]
+      summary: Create a permission
+      description: Requires the `permissions.create` permission.
+      operationId: createPermission
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/PermissionInput"
+      responses:
+        "201":
+          description: Permission created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Permission"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+  /api/v1/authorization/permissions/{permission_id}:
+    parameters:
+      - $ref: "#/components/parameters/PermissionId"
+    get:
+      tags: [Permissions]
+      summary: Get a permission
+      description: Requires the `permissions.read` permission.
+      operationId: getPermission
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Permission returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+    put:
+      tags: [Permissions]
+      summary: Update a permission
+      description: Requires the `permissions.update` permission.
+      operationId: updatePermission
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/PermissionInput"
+      responses:
+        "200":
+          description: Permission updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Permission"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+    delete:
+      tags: [Permissions]
+      summary: Delete a permission
+      description: Requires the `permissions.delete` permission.
+      operationId: deletePermission
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Permission deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+  /api/v1/authorization/roles/{role_id}/permissions:
+    parameters:
+      - $ref: "#/components/parameters/RoleId"
+    get:
+      tags: [Permissions]
+      summary: List permissions assigned to a role
+      description: Requires the `permissions.read` permission.
+      operationId: listRolePermissions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Assigned permissions returned successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+  /api/v1/authorization/roles/{role_id}/permissions/{permission_id}:
+    parameters:
+      - $ref: "#/components/parameters/RoleId"
+      - $ref: "#/components/parameters/PermissionId"
+    post:
+      tags: [Permissions]
+      summary: Assign a permission to a role
+      description: Requires the `permissions.assign` permission.
+      operationId: assignPermissionToRole
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Permission assigned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+    delete:
+      tags: [Permissions]
+      summary: Remove a permission from a role
+      description: Requires the `permissions.assign` permission.
+      operationId: removePermissionFromRole
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Permission removed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+  /api/v1/security/forgot-password:
+    post:
+      tags: [Security]
+      summary: Request password-reset instructions
+      description: Always returns the same public message to avoid revealing registered emails.
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: The request was accepted regardless of account existence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/security/reset-password:
+    post:
+      tags: [Security]
+      summary: Reset a password
+      description: Uses an unused, unexpired one-time token to replace the password.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password changed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/security/users/{user_id}/suspend:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    post:
+      tags: [Security]
+      summary: Suspend a user account
+      description: Requires `users.suspend`; administrators cannot suspend themselves.
+      operationId: suspendUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account suspended successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+  /api/v1/security/users/{user_id}/activate:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    post:
+      tags: [Security]
+      summary: Reactivate a user account
+      description: Requires `users.suspend`; administrators cannot reactivate themselves.
+      operationId: activateUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account reactivated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+  /api/v1/security/audit-logs:
+    get:
+      tags: [Security]
+      summary: List security audit events
+      description: Requires the `audit.read` permission.
+      operationId: listAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated audit events returned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter the access token returned by the login endpoint.
+  parameters:
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      description: Numeric user identifier.
+      schema:
+        type: integer
+        minimum: 1
+    RoleId:
+      name: role_id
+      in: path
+      required: true
+      description: Numeric role identifier.
+      schema:
+        type: integer
+        minimum: 1
+    PermissionId:
+      name: permission_id
+      in: path
+      required: true
+      description: Numeric permission identifier.
+      schema:
+        type: integer
+        minimum: 1
+    Search:
+      name: search
+      in: query
+      required: false
+      description: Case-insensitive username or email fragment.
+      schema:
+        type: string
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PerPage:
+      name: per_page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+  requestBodies:
+    RoleInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RoleInput"
+    PermissionInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PermissionInput"
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - message
+        - status
+      properties:
+        message:
+          type: string
+          example: Service is running
+        status:
+          type: string
+          example: ok
+    RegistrationRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          example: ezra
+        email:
+          type: string
+          format: email
+          example: ezra@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          writeOnly: true
+          example: Password123
+        full_name:
+          type: string
+          nullable: true
+          maxLength: 150
+          example: Mukisa Ben Ezra
+    LoginRequest:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Registered username or email address.
+          example: ezra
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          example: Password123
+    PublicUser:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - is_active
+        - is_suspended
+      properties:
+        id:
+          type: integer
+          example: 2
+        username:
+          type: string
+          example: ezra
+        email:
+          type: string
+          format: email
+          example: ezra@example.com
+        full_name:
+          type: string
+          nullable: true
+          example: Mukisa Ben Ezra
+        is_active:
+          type: boolean
+          example: true
+        is_suspended:
+          type: boolean
+          example: false
+    CurrentUser:
+      allOf:
+        - $ref: "#/components/schemas/PublicUser"
+        - type: object
+          required:
+            - role
+          properties:
+            role:
+              type: string
+              nullable: true
+              example: Employee
+    TokenPair:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+      properties:
+        access_token:
+          type: string
+          description: Short-lived JWT used to authorize API requests.
+        refresh_token:
+          type: string
+          description: Long-lived JWT used only at the refresh endpoint.
+        token_type:
+          type: string
+          example: Bearer
+    AccessTokenResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+      properties:
+        access_token:
+          type: string
+          description: Newly issued short-lived JWT.
+        token_type:
+          type: string
+          example: Bearer
+    ProtectedResponse:
+      type: object
+      required:
+        - message
+        - user_id
+      properties:
+        message:
+          type: string
+          example: Protected resource accessed.
+        user_id:
+          type: integer
+          example: 2
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    ProfileUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        full_name:
+          type: string
+          nullable: true
+          maxLength: 150
+          example: Mukisa Ben Ezra
+    UserPage:
+      type: object
+      required: [users, page, per_page, total, total_pages]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicUser"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+    RoleInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: Supervisor
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Supervises operational employees
+    Role:
+      allOf:
+        - $ref: "#/components/schemas/RoleInput"
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer
+              example: 1
+    NullableRole:
+      nullable: true
+      allOf:
+        - $ref: "#/components/schemas/Role"
+    PermissionInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: reports.read
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: View operational reports
+    Permission:
+      allOf:
+        - $ref: "#/components/schemas/PermissionInput"
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer
+              example: 1
+    RoleAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - role_id
+      properties:
+        role_id:
+          type: integer
+          minimum: 1
+    RoleAssignmentResponse:
+      type: object
+      required: [message, user_id, role]
+      properties:
+        message:
+          type: string
+          example: Role assigned successfully.
+        user_id:
+          type: integer
+        role:
+          $ref: "#/components/schemas/Role"
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: ezra@example.com
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - password
+      properties:
+        token:
+          type: string
+          description: Raw one-time token received in the reset link.
+        password:
+          type: string
+          format: password
+          minLength: 8
+          writeOnly: true
+    AuditLog:
+      type: object
+      required: [id, action, status, created_at]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+          nullable: true
+        action:
+          type: string
+          example: LOGIN
+        status:
+          type: string
+          example: SUCCESS
+        ip_address:
+          type: string
+          nullable: true
+          example: 127.0.0.1
+        created_at:
+          type: string
+          format: date-time
+    AuditLogPage:
+      type: object
+      required: [events, page, per_page, total, total_pages]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Invalid username/email or password.
+    JwtError:
+      type: object
+      required:
+        - msg
+      properties:
+        msg:
+          type: string
+          example: Missing Authorization Header
+    ValidationErrors:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            password: Password is required and must be at least 8 characters.
+  responses:
+    ValidationError:
+      description: Request validation or a business rule failed.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/ValidationErrors"
+              - $ref: "#/components/schemas/Error"
+    ConflictError:
+      description: The username or email is already registered.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnauthorizedError:
+      description: The token is missing, invalid, expired, revoked, or has the wrong type.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/Error"
+              - $ref: "#/components/schemas/JwtError"
+    ForbiddenError:
+      description: The authenticated user does not have the required permission.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFoundError:
+      description: The requested user, role, or permission was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
